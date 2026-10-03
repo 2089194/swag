@@ -1,138 +1,149 @@
 # Architecture
 
 ```
-┌────────────────────────────── plugin (JUCE) ──────────────────────────────┐
-│                                                                           │
-│  UI (message thread, 60 fps vblank)       Session (message thread)        │
-│  TopBar · ChordWheel · ChordStrip   ───►  progression, undo/ideas, style, │
-│  PianoRollPreview · DragMidiButton  ◄───  param polling, render + publish │
-│              │  reads atomics                    │ TripleBuffer           │
-│              ▼                                   ▼ (lock-free)            │
-│  BounceProcessor (audio thread): PatternPlayer ─► KeysSynth ─► audio out  │
-│                                         └──────────────────► MIDI out     │
-└───────────────────────────────────────────────────────────────────────────┘
-                 ▲ uses (pure functions, no JUCE)
-┌──────────────────────────── core (bounce_core) ───────────────────────────┐
-│ theory/  Pitch · Scale/Key · Chord (+ parse, roman numerals) · Voicing    │
-│ gen/     StylePreset · ChordGenerator · ChordRenderer · Progression ·     │
-│          IdeaHistory                                                      │
-│ midi/    MidiClip · SMF writer/reader · file naming                       │
-│ util/    Random (PCG32) · Json · TripleBuffer                             │
-└───────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────── plugin (JUCE) ────────────────────────────────────┐
+│ UI (message thread, 60 fps vblank)            Session (message thread)               │
+│  TopBar · ModulePanel tabs · ChordWheel  ──►  Idea (chords + seeds + locks + edits),  │
+│  MixerPanel · ChordStrip · PartLanes     ◄──  undo/history, style, arrangement,       │
+│  LabView                                      param polling → render all parts        │
+│      │ reads atomics                                 │ 6 × TripleBuffer (lock-free)   │
+│      ▼                                               ▼                                │
+│ BounceProcessor (audio thread)                                                        │
+│  6 × PatternPlayer ─► Keys / 808 / Lead / DrumSampler ─► Mixer (drive, LPF, sends) ─► │
+│        └────────────────────────────────────────────────► MIDI out (all parts)        │
+│ LabModel (background thread): decode → analysis::analyse → posted to message thread  │
+└───────────────────────────────────────────────────────────────────────────────────────┘
+                     ▲ pure functions, no JUCE
+┌──────────────────────────────────── core (bounce_core) ──────────────────────────────┐
+│ theory/    Pitch · Scale/Key · Chord (+parse, roman) · Voicing                        │
+│ gen/       Harmony · StylePreset · ChordGenerator · ChordRenderer · Progression ·     │
+│            BassGenerator · MelodyGenerator · DrumGenerator · Groove · Idea ·          │
+│            IdeaHistory · Arrangement                                                  │
+│ analysis/  Fft · AudioAnalysis (tempo, key, chords, downbeat, speed helper)           │
+│ midi/      MidiClip (notes, CCs, markers) · SMF writer/reader · file naming           │
+│ util/      Random (PCG32) · Json · TripleBuffer                                       │
+└───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-The spec's four modules map onto the code like this:
+| Spec module  | Where |
+|--------------|-------|
+| `Generators` | `core/gen/` (pure, unit tested) |
+| `Analysis`   | `core/analysis/` (pure, tested on synthesised audio) + `plugin/Source/Analysis/LabModel` (threading) |
+| `Engine`     | `plugin/Source/Engine/` (PatternPlayer, KeysSynth, Voices, DrumSampler, Mixer) |
+| `UI`         | `plugin/Source/UI/` |
 
-| Spec module  | Where                                                     |
-|--------------|-----------------------------------------------------------|
-| `Generators` | `core/` (pure, JUCE-free, unit tested)                    |
-| `Engine`     | `plugin/Source/Engine/` (real-time DSP + MIDI playback)   |
-| `UI`         | `plugin/Source/UI/`                                       |
-| `Analysis`   | `core/analysis/` + `plugin/Source/Analysis/` (milestone 4)|
+## Data flow
 
-## Key decisions
+1. **An `Idea`** holds the chord `Progression` (with per-chord locks, voicing edits and optional
+   custom lengths), one seed per part, the melody's locked bars, and per-part hand edits.
+   Undo, redo and the 50-idea history store whole Ideas.
+2. **Rendering** happens in `Session::render()` on the message thread, and it is deterministic:
+   - chords → `renderChords`
+   - drums → `generateDrums`
+   - 808 → `generateBass`, locked to `drums.kickTimes()`
+   - melody → `generateMelody`, with locked bars
+   - counter → `generateCounterMelody` against the melody
+   - hand edits are applied on top
+   - drums are rendered twice: mapped for MIDI out, and encoded for the internal sampler
+3. **Each rendered clip** is copied into a fixed-capacity `PlaybackPattern` and published
+   through a `TripleBuffer`. The audio thread picks up the newest one at the start of each
+   block.
+4. **Parameter changes are polled** at 30 Hz.
+   - Chord harmony params (complexity, mood, borrowed, scale, bars, chord count) regenerate
+     the chords with the same seed after a 200 ms debounce.
+   - Key changes transpose the idea.
+   - Everything else that shapes notes triggers a re-render.
+   - Audio-only params (mixer, voice settings) are read directly by the audio thread.
 
-### 1. A pure core
+## Determinism
 
-All of the musical logic lives in `bounce_core`. It's plain C++20 with no JUCE, and it does no
-I/O and starts no threads. This gives us:
+`util::Random` is PCG32 with its own uniform, weighted and Gaussian-ish sampling, rather than
+`<random>`, whose distributions differ between standard libraries. Every generator draws from
+`deriveSeed(seed, stream)` sub-streams per slot, bar or lane. This keeps locking or regenerating
+one element from reshuffling the others, and keeps swing/humanise from changing which notes
+you get.
 
-- fast, deterministic unit tests (about 114k assertions in under 0.2 s) that run on every OS in CI;
-- the option to reuse the generators elsewhere later (a CLI, a web demo, or batch-testing styles);
-- a hard boundary that stops UI or audio-thread concerns from leaking into the theory code.
+## Harmony engine
 
-The core has its own small JSON parser (`util/Json`), so style presets can be parsed and tested
-without JUCE. It accepts `//` comments and trailing commas, because the presets are meant to
-be edited by hand.
-
-### 2. Determinism
-
-`util::Random` is a PCG32 generator with its own uniform, weighted and Gaussian-ish sampling. The
-`<random>` distributions aren't used because their output differs between MSVC, libc++ and
-libstdc++. With this choice, a seed saved on Windows reproduces the same idea on a Mac.
-
-Each chord slot draws from its own sub-stream (`deriveSeed(seed, slot)`). Locking one chord
-therefore doesn't reshuffle the random choices made for the others. Humanisation also has its
-own streams, so changing the swing doesn't change which chords you get.
-
-### 3. The harmony engine
-
-`ChordGenerator` is a weighted Markov chain over **harmony functions**. A function is a roman
-numeral relative to the tonic, measured against the major scale (`i`, `bVI`, `bVII`, `iv`, `V`).
-Major- and minor-tonic modes have separate tables. For each slot:
+`ChordGenerator` is a weighted Markov chain over roman-numeral **functions**, with separate tables
+for major- and minor-tonic modes. Each candidate's weight is built like this:
 
 ```
-weight(fn) = transition(prev → fn)                 // or start weight for slot 0
-           × soft(transition(fn → next))           // only when the next chord is locked
-           × soft(transition(last → fn))           // slot 0: the loop seam
-           × exp(mood × family_sign × 0.8)         // dark favours minor, bright favours major
-           × borrowed_amount × 1.6                 // only for non-diatonic functions
-           × variety penalties                     // no immediate repeats, fewer re-uses
+weight(fn) = transition(prev → fn)             // or the start weight for slot 0
+           × soft(transition(fn → next))       // only when the next chord is locked
+           × soft(transition(last → fn))       // loop seam
+           × exp(mood × family_sign × 0.8)
+           × borrowed × 1.6                     // non-diatonic functions only
+           × variety penalties
 ```
 
-The chord **quality** is then picked from the colours allowed for that function. A diatonic
-function only gets tones from the scale. A borrowed function gets tones from the parallel
-major/minor scale. Each candidate quality is weighted by the preset's `colours` and by a bell
-curve around the complexity target (3 tones at complexity 0, up to 5–6 at 1). This is
-why the output stays in key, and the tests check this property for every mode and seed.
+A weight of 0 in the preset forbids a move outright. The chord quality is chosen from colours
+that stay inside the scale (diatonic) or the parallel scale (borrowed), weighted by the preset
+and by a bell curve around the complexity setting.
 
-Turning Complexity, Mood or Borrowed regenerates **with the same seed**, so a knob re-colours
-the current idea instead of rolling a new one. Generate and the dice are the only controls
-that pick new seeds.
+## Generators in brief
 
-### 4. Voicing and voice leading
+- **808.** The onsets in each chord come from the kick (lock to kick) or from mode-specific
+  templates, plus density extras. Pitches are the root, 5th or octave, depending on the mode.
+  Glides overlap the next note by a 32nd, and the clip starts with CC65/CC5 portamento hints.
+- **Melody.** It picks a motif rhythm (weighted towards strong steps) and a motif contour (in
+  scale steps). Each bar reuses the rhythm (repetition) and the contour (catchiness), with
+  small variations. Call & response trims the answer bar and resolves it downward. Strong
+  beats snap to chord tones. A final pass keeps the line monophonic after swing.
+- **Counter-melody.** It places notes on an 8th grid where the melody rests. Candidates are
+  weighted by step size, chord tones and contrary motion; 2nds, 7ths and tritones against
+  the sounding melody note are rejected. Each note is cut at the next melody onset.
+- **Drums.** It works per bar and per lane: kick A/B patterns, a half-time snare, hats with
+  rolls and stutters, open hats, percs and rims. Swing, then bounce, then humanise are
+  applied, with the loop downbeat fixed at 0.
 
-`voiceChord` splits a chord into a left hand and a right-hand upper structure, according to the
-style (for example, Spread puts root + 5th in the left hand). It then enumerates every
-inversion × octave of the upper structure inside the register. With a previous voicing, it picks the
-candidate with the smallest movement plus a top-voice penalty. Without one, it picks the candidate
-nearest the middle of the register. `voiceProgression` runs twice, so chord 1 is voice-led
-out of the last chord and the loop seam stays smooth. A forced inversion (from the ↑/↓ arrows)
-pins the rotation.
+## Analysis
 
-### 5. Threading and real-time safety
+The input is downmixed to mono and decimated to about 22 kHz.
 
-- **Message thread.** `Session` owns every bit of non-parameter state. Host parameters are read
-  by a 30 Hz timer that **polls** the APVTS atomics, so we never react on the audio thread to
-  automation. After every change it re-renders the clip and publishes it.
-- **Hand-over.** `TripleBuffer<PlaybackPattern>` is a lock-free single-producer/single-consumer
-  "latest value" exchange. `PlaybackPattern` has a fixed capacity (1024 notes), so publishing
-  never allocates on the audio side and the reader never sees a half-written loop.
-- **Audio thread.** `PatternPlayer` turns the loop into sample-accurate MIDI against the host's
-  PPQ position, so the loop always starts on the bar. It chases notes on start, jumps and
-  pattern swaps (it diffs held vs. should-hold, so unchanged notes aren't retriggered) and
-  flushes everything on stop. `KeysSynth` is a custom voice allocator (not
-  `juce::Synthesiser`, whose render path takes a lock). Nothing on this path allocates, locks
-  or does I/O. The `MidiBuffer` is pre-sized in `prepareToPlay`.
-- **UI.** It reads `getLoopPosition()`/`getHostBpm()` atomics and repaints from a
-  `VBlankAttachment`, at 60 fps and without touching the audio thread.
-- **State.** Hosts may call `getStateInformation` from any thread, so `Session` keeps a
-  snapshot that's refreshed on the message thread after every edit, guarded by a spin lock that
-  is never touched by the audio thread. `setStateInformation` hops to the message thread if
-  needed.
+- **Onsets.** A log-magnitude spectral flux (1024/256 frames) is detrended so only onsets
+  remain.
+- **Tempo.** Autocorrelation at fractional lags over 60–200 BPM uses the sum of 1×, 2× and 4×
+  the beat period, times a log-normal prior at 140 BPM. A 0.01 BPM refinement then adds 8×.
+  The beat phase is the offset that collects the most onset energy.
+- **Chroma.** 8192/2048 frames, 60 Hz–4.2 kHz, with triangular in-tune weighting.
+- **Key.** The average of the Pearson correlations with the Krumhansl-Kessler and Temperley
+  profiles, over 24 keys. Confidence comes from a softmax.
+- **Chords.** Per-beat chroma is matched against templates by cosine similarity, plus a
+  diatonic bonus and a penalty for 7ths. A Viterbi pass uses a constant switching penalty, and
+  runs of the same state are merged into segments.
+- **Downbeat.** The beat phase (of four) where the most chord changes fall on bar lines.
 
-### 6. Getting MIDI into FL Studio
+`progressionFromDetected` snaps segments to the half-beat grid inside the chosen window. It
+drops slivers under one beat, merges down to 8 chords, and returns locked slots with custom
+lengths.
 
-- **Drag.** `DragMidiButton` writes `<temp>/Bounce/<name>.mid` and calls
-  `performExternalDragDropOfFiles`. One part is written as SMF format 0, which is what FL's
-  Piano Roll handles best. Several parts are written as format 1, one named track per part,
-  which the Playlist splits into channels.
-- **Writer guarantees.** Note-offs come before note-ons on the same tick. Same-key overlaps are
-  trimmed, so on/off pairs always match. Notes are clipped to the loop, and every track is
-  padded to the full loop length so it lines up when dropped.
-- **MIDI out.** The plugin is built with `NEEDS_MIDI_OUTPUT`. The generated events, plus anything
-  played in, are emitted every block.
+## Real-time safety
 
-### 7. UI scaling
+- No allocation, locks or I/O on the audio thread. Every buffer, including the 60 s capture
+  ring and the MIDI buffers, is sized in `prepareToPlay`.
+- Parameter atomics are cached at construction (no name lookups per block).
+- `PatternPlayer` is sample-accurate against the host PPQ, so loops start on the bar. It
+  chases notes on start, jumps and pattern swaps (only notes that actually changed are
+  restarted) and flushes everything on stop.
+- `KeysSynth`, `LeadSynth`, `Bass808` and `DrumSampler` use their own voice allocation.
+  `juce::Synthesiser` takes a lock while rendering, so it isn't used.
+- Custom drum samples are swapped through atomics, with a timed release pool on the message
+  thread.
+- `getStateInformation` returns a snapshot refreshed after every edit, guarded by a spin lock
+  that the audio thread never touches. `setStateInformation` hops to the message thread.
 
-The editor lays everything out at a fixed design size (1120×720) inside one `Content`
-component and scales it with an `AffineTransform`. Every graphic is a vector path, so
-it stays crisp from 75% to 200%. The chosen size is saved in the plugin state.
+## UI
 
-## Testing
+Everything is laid out at a fixed 1360×860 design size and scaled with an `AffineTransform`,
+and every graphic is a vector path, so it stays crisp from 75% to 200%. On first open,
+`defaultWidthForScreen()` picks the largest size that fits the main display, up to 100%.
+Animation runs from a `VBlankAttachment` that reads atomics.
 
-| Suite                 | What it covers                                                               |
-|-----------------------|------------------------------------------------------------------------------|
-| `bounce_tests`        | scales/modes, chord spelling + parsing for all 25 qualities × 12 roots, diatonic stacking, roman numerals, voicing constraints, voice leading, generator determinism, staying in key, borrowed-chord sources, locks, reharmonise, transpose, complexity/mood behaviour, renderer timing/rhythms, SMF round trip, file naming, JSON, every bundled preset, RNG, triple buffer under contention |
-| `bounce_engine_tests` | the real-time `PatternPlayer`: bar-aligned loop wrap (±1 sample), note on/off pairing, chase on start/jump, pattern swap without retrigger, re-struck notes, flush on stop, preview clock |
-| pluginval (CI)        | strictness 10: state round trips, automation, threading, fuzzing, editor     |
+## Tests
+
+| Suite | Covers |
+|---|---|
+| `bounce_tests` (77 cases) | Theory, voicing, the chord generator (in key, locks, determinism, borrowed sources, custom lengths), renderer, 808 (roots, register, lock to kick, glides), melody (in key, chord tones on strong beats, monophonic, density, repetition, bar locks), counter-melody (no clashes, fills gaps), drums (backbone, roll rates/curves/pitch, maps, style JSON), ideas/edits/arrangement, analysis of synthesised audio (BPM within 0.2%, key, chords, downbeat, detected → progression), speed helper, MIDI files with CCs and markers, JSON, presets, RNG, triple buffer |
+| `bounce_engine_tests` (13 cases) | Pattern player (bar-aligned wrap, pairing, chase, swap, jumps, preview), 808 glide/release, lead types, keys wobble, synthesised kit, sampler hot-swap, mixer mute/tails |
+| pluginval (CI) | Strictness 10 on Windows, macOS and Linux |
