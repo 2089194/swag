@@ -297,6 +297,46 @@ StylePreset StylePreset::fromJson (const util::Json& j, std::vector<std::string>
     p.velocityRandom = perf["velocityRandom"].asNumber (p.velocityRandom);
     p.timingRandomMs = perf["timingRandomMs"].asNumber (p.timingRandomMs);
 
+    const auto& bass = j["bass"];
+    if (bass.has ("mode"))
+    {
+        bool found = false;
+        for (int m = 0; m < static_cast<int> (BassMode::NumModes); ++m)
+            if (bass["mode"].asString() == bassModeName (static_cast<BassMode> (m)))
+            {
+                p.bassMode = static_cast<BassMode> (m);
+                found = true;
+            }
+        if (! found && warnings)
+            warnings->push_back ("bad bass mode '" + bass["mode"].asString() + "'");
+    }
+    p.bassDensity = bass["density"].asNumber (p.bassDensity);
+    p.bassGlide = bass["glide"].asNumber (p.bassGlide);
+    p.bassLockToKick = bass["lockToKick"].asBool (p.bassLockToKick);
+
+    const auto& mel = j["melody"];
+    p.melodyDensity = mel["density"].asNumber (p.melodyDensity);
+    p.melodyPentatonic = mel["pentatonic"].asNumber (p.melodyPentatonic);
+    if (mel.has ("feel"))
+    {
+        bool found = false;
+        for (int f = 0; f < static_cast<int> (MelodyFeel::NumFeels); ++f)
+            if (mel["feel"].asString() == melodyFeelName (static_cast<MelodyFeel> (f)))
+            {
+                p.melodyFeel = static_cast<MelodyFeel> (f);
+                found = true;
+            }
+        if (! found && warnings)
+            warnings->push_back ("bad melody feel '" + mel["feel"].asString() + "'");
+    }
+
+    const auto& dr = j["drums"];
+    p.drums = DrumStyle::fromJson (dr, warnings);
+    p.drumSwing = dr["swing"].asNumber (p.drumSwing);
+    p.rollAmount = dr["rollAmount"].asNumber (p.rollAmount);
+    p.percDensity = dr["percDensity"].asNumber (p.percDensity);
+    p.openHatAmount = dr["openHatAmount"].asNumber (p.openHatAmount);
+
     return p;
 }
 
@@ -348,6 +388,26 @@ util::Json StylePreset::toJson() const
     perf.set ("velocityRandom", velocityRandom);
     perf.set ("timingRandomMs", timingRandomMs);
     j.set ("performance", std::move (perf));
+
+    Json bass;
+    bass.set ("mode", std::string (bassModeName (bassMode)));
+    bass.set ("density", bassDensity);
+    bass.set ("glide", bassGlide);
+    bass.set ("lockToKick", bassLockToKick);
+    j.set ("bass", std::move (bass));
+
+    Json mel;
+    mel.set ("density", melodyDensity);
+    mel.set ("feel", std::string (melodyFeelName (melodyFeel)));
+    mel.set ("pentatonic", melodyPentatonic);
+    j.set ("melody", std::move (mel));
+
+    Json dr = drums.toJson();
+    dr.set ("swing", drumSwing);
+    dr.set ("rollAmount", rollAmount);
+    dr.set ("percDensity", percDensity);
+    dr.set ("openHatAmount", openHatAmount);
+    j.set ("drums", std::move (dr));
 
     return j;
 }

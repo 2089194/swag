@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bounce/gen/Progression.h"
+#include "bounce/gen/StylePreset.h"
 #include "bounce/midi/MidiClip.h"
 #include "bounce/theory/Voicing.h"
 

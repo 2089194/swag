@@ -10,6 +10,13 @@ add_library(bounce_core STATIC
     src/gen/ChordGenerator.cpp
     src/gen/ChordRenderer.cpp
     src/gen/IdeaHistory.cpp
+    src/gen/Idea.cpp
+    src/gen/DrumGenerator.cpp
+    src/gen/BassGenerator.cpp
+    src/gen/MelodyGenerator.cpp
+    src/gen/Arrangement.cpp
+    src/analysis/Fft.cpp
+    src/analysis/AudioAnalysis.cpp
     src/midi/MidiFile.cpp
     src/util/Json.cpp)
 

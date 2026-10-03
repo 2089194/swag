@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bounce/gen/StylePreset.h"
+#include "bounce/gen/Harmony.h"
 #include "bounce/theory/Chord.h"
 #include "bounce/theory/Voicing.h"
 #include "bounce/util/Json.h"
@@ -28,19 +28,31 @@ struct ChordSlot
     bool operator== (const ChordSlot&) const = default;
 };
 
-/** A chord loop. Chords share the loop evenly (on a half-beat grid). */
+/** A chord loop. By default chords share the loop evenly (on a half-beat grid); with
+    `customLengths` (one entry per slot, summing to the loop length) each chord has its own
+    duration, e.g. for progressions detected from audio or "one chord, then two" patterns. */
 struct Progression
 {
     theory::Key key;
     int bars = 4;
     int beatsPerBar = 4;
     std::vector<ChordSlot> slots;
+    std::vector<double> customLengths; // empty = even split
     uint64_t seed = 0;
     std::string styleId;
 
     bool operator== (const Progression&) const = default;
 
     double lengthBeats() const { return static_cast<double> (bars * beatsPerBar); }
+
+    bool hasCustomLengths() const;
+
+    /** Sets slot i's length (beats, half-beat grid), taking/giving time from the next slot
+        (or the previous one for the last slot). Converts to custom lengths. */
+    void setSlotLength (int i, double beats);
+
+    /** Back to an even split. */
+    void clearCustomLengths() { customLengths.clear(); }
 
     /** Start beat / length of slot i. */
     double slotStart (int i) const;

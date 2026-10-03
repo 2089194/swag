@@ -1,17 +1,58 @@
 #include "bounce/gen/Progression.h"
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 
 namespace bounce::gen
 {
 
+bool Progression::hasCustomLengths() const
+{
+    if (customLengths.size() != slots.size() || slots.empty())
+        return false;
+    double sum = 0.0;
+    for (double l : customLengths)
+    {
+        if (l <= 0.0)
+            return false;
+        sum += l;
+    }
+    return std::abs (sum - lengthBeats()) < 1e-6;
+}
+
 double Progression::slotStart (int i) const
 {
     const int n = static_cast<int> (slots.size());
     if (n == 0)
         return 0.0;
+    if (hasCustomLengths())
+    {
+        double t = 0.0;
+        for (int k = 0; k < i && k < n; ++k)
+            t += customLengths[static_cast<size_t> (k)];
+        return i >= n ? lengthBeats() : t;
+    }
     return std::round (2.0 * lengthBeats() * i / n) / 2.0;
+}
+
+void Progression::setSlotLength (int i, double beats)
+{
+    const int n = static_cast<int> (slots.size());
+    if (i < 0 || i >= n || n < 2)
+        return;
+
+    std::vector<double> lengths;
+    for (int k = 0; k < n; ++k)
+        lengths.push_back (slotLength (k));
+
+    const int donor = i < n - 1 ? i + 1 : i - 1;
+    const double pool = lengths[static_cast<size_t> (i)] + lengths[static_cast<size_t> (donor)];
+    beats = std::round (beats * 2.0) / 2.0;
+    beats = std::clamp (beats, 0.5, pool - 0.5);
+    lengths[static_cast<size_t> (i)] = beats;
+    lengths[static_cast<size_t> (donor)] = pool - beats;
+    customLengths = lengths;
 }
 
 double Progression::slotLength (int i) const
@@ -65,6 +106,14 @@ util::Json Progression::toJson() const
     j.set ("beatsPerBar", beatsPerBar);
     j.set ("seed", std::to_string (seed)); // string: JSON numbers can't hold 64 bits
     j.set ("style", styleId);
+    if (hasCustomLengths())
+    {
+        Json lens;
+        lens.asArray();
+        for (double l : customLengths)
+            lens.push (l);
+        j.set ("lengths", std::move (lens));
+    }
 
     Json arr;
     arr.asArray();
@@ -140,6 +189,11 @@ std::optional<Progression> Progression::fromJson (const util::Json& j)
 
     if (p.slots.empty() || p.slots.size() > 32)
         return std::nullopt;
+
+    for (const auto& l : j["lengths"].asArray())
+        p.customLengths.push_back (l.asNumber());
+    if (! p.hasCustomLengths())
+        p.customLengths.clear();
 
     return p;
 }

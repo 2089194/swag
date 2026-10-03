@@ -7,7 +7,12 @@ add_executable(bounce_tests
     MidiFileTests.cpp
     JsonTests.cpp
     StylePresetTests.cpp
-    UtilTests.cpp)
+    UtilTests.cpp
+    DrumTests.cpp
+    BassTests.cpp
+    MelodyTests.cpp
+    IdeaTests.cpp
+    AnalysisTests.cpp)
 
 find_package(Threads REQUIRED)
 target_link_libraries(bounce_tests PRIVATE bounce::core doctest::doctest Threads::Threads)

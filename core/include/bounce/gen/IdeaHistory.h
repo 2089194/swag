@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bounce/gen/Progression.h"
+#include "bounce/gen/Idea.h"
 #include "bounce/util/Json.h"
 
 #include <cstddef>
@@ -12,45 +12,45 @@
 namespace bounce::gen
 {
 
-/** Undo/redo over progression edits, plus a capped list of generated ideas the user can recall.
+/** Undo/redo over idea edits, plus a capped list of generated ideas the user can recall.
 
     - push() records an edit (lock, invert, reharmonise, transpose...). It clears the redo branch.
-    - addIdea() additionally stores the progression in the idea list (only "Generate"/dice do this).
+    - addIdea() additionally stores the idea in the idea list (only "Generate"/dice do this).
     Not thread-safe: owned and used by the message thread only. */
 class IdeaHistory
 {
 public:
     explicit IdeaHistory (size_t maxIdeas = 50, size_t maxUndo = 200);
 
-    void reset (const Progression& initial);
+    void reset (const Idea& initial);
 
-    void push (const Progression& p);
-    void addIdea (const Progression& p, const std::string& label);
+    void push (const Idea& p);
+    void addIdea (const Idea& p, const std::string& label);
 
     bool canUndo() const { return cursor > 0; }
     bool canRedo() const { return cursor + 1 < undoStack.size(); }
 
-    std::optional<Progression> undo();
-    std::optional<Progression> redo();
+    std::optional<Idea> undo();
+    std::optional<Idea> redo();
 
-    const Progression* current() const;
+    const Idea* current() const;
 
-    struct Idea
+    struct Entry
     {
         std::string label;
-        Progression progression;
+        gen::Idea idea;
     };
 
-    const std::deque<Idea>& ideas() const { return ideaList; }
+    const std::deque<Entry>& ideas() const { return ideaList; }
 
     util::Json ideasToJson() const;
     void ideasFromJson (const util::Json& json);
 
 private:
     size_t maxIdeas, maxUndo;
-    std::vector<Progression> undoStack;
+    std::vector<Idea> undoStack;
     size_t cursor = 0;
-    std::deque<Idea> ideaList; // newest first
+    std::deque<Entry> ideaList; // newest first
 };
 
 } // namespace bounce::gen

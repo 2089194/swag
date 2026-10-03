@@ -302,15 +302,23 @@ TEST_CASE ("idea history and undo")
     ChordGenerator gen (StylePreset::defaults());
     IdeaHistory h (3);
     auto params = paramsFor ({ 0, ScaleType::Major }, 1);
-    const auto p1 = gen.generate (params);
+    auto ideaFor = [&] (uint64_t seed)
+    {
+        params.seed = seed;
+        Idea idea;
+        idea.chords = gen.generate (params);
+        idea.bassSeed = seed + 1;
+        return idea;
+    };
+
+    const auto p1 = ideaFor (1);
     h.reset (p1);
     CHECK_FALSE (h.canUndo());
 
-    params.seed = 2;
-    const auto p2 = gen.generate (params);
+    const auto p2 = ideaFor (2);
     h.addIdea (p2, "idea 2");
     auto p3 = p2;
-    p3.slots[0].locked = true;
+    p3.chords.slots[0].locked = true;
     h.push (p3);
 
     CHECK (*h.undo() == p2);
@@ -322,15 +330,38 @@ TEST_CASE ("idea history and undo")
     CHECK_FALSE (h.canRedo());
 
     for (uint64_t s = 10; s < 20; ++s)
-    {
-        params.seed = s;
-        h.addIdea (gen.generate (params), "x");
-    }
+        h.addIdea (ideaFor (s), "x");
     CHECK (h.ideas().size() == 3);
-    CHECK (h.ideas().front().progression.seed == 19);
+    CHECK (h.ideas().front().idea.chords.seed == 19);
 
     IdeaHistory restored (3);
     restored.ideasFromJson (h.ideasToJson());
     REQUIRE (restored.ideas().size() == 3);
-    CHECK (restored.ideas()[1].progression == h.ideas()[1].progression);
+    CHECK (restored.ideas()[1].idea == h.ideas()[1].idea);
+}
+
+TEST_CASE ("custom chord lengths")
+{
+    ChordGenerator gen (StylePreset::defaults());
+    auto prog = gen.generate (paramsFor ({ 9, ScaleType::NaturalMinor }, 3));
+    prog.setSlotLength (0, 6.0); // chord 1 takes 1.5 bars, chord 2 gets what's left of its 2 bars
+    REQUIRE (prog.hasCustomLengths());
+    CHECK (prog.slotLength (0) == 6.0);
+    CHECK (prog.slotLength (1) == 2.0);
+    CHECK (prog.slotStart (2) == 8.0);
+    CHECK (prog.slotAt (7.0) == 1);
+
+    prog.setSlotLength (3, 0.1); // clamped to half a beat
+    CHECK (prog.slotLength (3) == 0.5);
+    CHECK (prog.slotStart (4) == 16.0);
+
+    // Survives JSON and regeneration with the same shape; dropped when the shape changes.
+    const auto back = Progression::fromJson (*util::Json::parse (prog.toJson().dump()).value);
+    REQUIRE (back);
+    CHECK (back->customLengths == prog.customLengths);
+
+    auto params = paramsFor ({ 9, ScaleType::NaturalMinor }, 4);
+    CHECK (gen.generate (params, &prog).customLengths == prog.customLengths);
+    params.chordCount = 3;
+    CHECK_FALSE (gen.generate (params, &prog).hasCustomLengths());
 }

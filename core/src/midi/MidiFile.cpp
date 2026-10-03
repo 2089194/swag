@@ -14,6 +14,38 @@ void MidiClip::sortByTime()
     {
         return std::tie (a.start, a.pitch) < std::tie (b.start, b.pitch);
     });
+    std::stable_sort (controls.begin(), controls.end(), [] (const ControlChange& a, const ControlChange& b) { return a.time < b.time; });
+    std::stable_sort (markers.begin(), markers.end(), [] (const Marker& a, const Marker& b) { return a.time < b.time; });
+}
+
+MidiClip MidiClip::tiled (double beats) const
+{
+    MidiClip out;
+    out.name = name;
+    out.lengthBeats = beats;
+    if (lengthBeats <= 0.0)
+        return out;
+
+    for (double offset = 0.0; offset < beats - 1e-9; offset += lengthBeats)
+    {
+        for (auto n : notes)
+        {
+            n.start += offset;
+            if (n.start >= beats - 1e-9)
+                continue;
+            n.length = std::min (n.length, beats - n.start);
+            out.notes.push_back (n);
+        }
+        for (auto c : controls)
+        {
+            c.time += offset;
+            if (c.time < beats - 1e-9)
+                out.controls.push_back (c);
+        }
+    }
+    out.markers = markers;
+    out.sortByTime();
+    return out;
 }
 
 namespace
@@ -21,7 +53,7 @@ namespace
 struct Event
 {
     int64_t tick;
-    int order;              // 0 = meta, 1 = note-off, 2 = note-on (offs first at equal ticks)
+    int order;              // 0 = meta, 1 = controller, 2 = note-off, 3 = note-on (offs before ons at equal ticks)
     std::vector<uint8_t> bytes;
 };
 
@@ -110,13 +142,26 @@ std::vector<Event> noteEvents (const MidiClip& clip, int ppq)
     }
 
     std::vector<Event> events;
+    for (const auto& c : clip.controls)
+    {
+        const int64_t t = std::clamp<int64_t> (toTick (c.time), 0, std::max<int64_t> (0, clipEnd - 1));
+        events.push_back ({ t, 1, { static_cast<uint8_t> (0xB0 | std::clamp (c.channel, 0, 15)),
+                                    static_cast<uint8_t> (std::clamp (c.controller, 0, 127)),
+                                    static_cast<uint8_t> (std::clamp (c.value, 0, 127)) } });
+    }
+    for (const auto& m : clip.markers)
+    {
+        Event e = textMeta (std::clamp<int64_t> (toTick (m.time), 0, clipEnd), 0x06, m.text);
+        events.push_back (std::move (e));
+    }
+
     for (size_t i = 0; i < tn.size(); ++i)
     {
         if (drop[i])
             continue;
         const auto& n = tn[i];
-        events.push_back ({ n.on,  2, { static_cast<uint8_t> (0x90 | n.ch), static_cast<uint8_t> (n.pitch), static_cast<uint8_t> (n.vel) } });
-        events.push_back ({ n.off, 1, { static_cast<uint8_t> (0x80 | n.ch), static_cast<uint8_t> (n.pitch), 64 } });
+        events.push_back ({ n.on,  3, { static_cast<uint8_t> (0x90 | n.ch), static_cast<uint8_t> (n.pitch), static_cast<uint8_t> (n.vel) } });
+        events.push_back ({ n.off, 2, { static_cast<uint8_t> (0x80 | n.ch), static_cast<uint8_t> (n.pitch), 64 } });
     }
     return events;
 }
@@ -272,6 +317,9 @@ std::optional<ParsedMidiFile> readMidiFile (const std::vector<uint8_t>& d)
                 }
                 else if (type == 0x03)
                     clip.name.assign (d.begin() + static_cast<long> (pos), d.begin() + static_cast<long> (pos + *mlen));
+                else if (type == 0x06)
+                    clip.markers.push_back ({ static_cast<double> (tick) / f.ppq,
+                                              std::string (d.begin() + static_cast<long> (pos), d.begin() + static_cast<long> (pos + *mlen)) });
                 else if (type == 0x2F)
                     clip.lengthBeats = static_cast<double> (tick) / f.ppq;
                 pos += *mlen;
@@ -295,6 +343,9 @@ std::optional<ParsedMidiFile> readMidiFile (const std::vector<uint8_t>& d)
             const int a = d[pos];
             const int b = dataBytes > 1 ? d[pos + 1] : 0;
             pos += static_cast<size_t> (dataBytes);
+
+            if (type == 0xB0)
+                clip.controls.push_back ({ static_cast<double> (tick) / f.ppq, a, b, ch });
 
             const bool on = type == 0x90 && b > 0;
             const bool off = type == 0x80 || (type == 0x90 && b == 0);

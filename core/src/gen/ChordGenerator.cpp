@@ -274,6 +274,11 @@ Progression ChordGenerator::generate (const ChordGeneratorParams& params, const 
         }
     }
 
+    // Keep hand-set / detected chord durations when the loop shape is unchanged.
+    if (existing != nullptr && existing->hasCustomLengths()
+        && static_cast<int> (existing->slots.size()) == n && existing->bars == prog.bars)
+        prog.customLengths = existing->customLengths;
+
     for (int i = 0; i < n; ++i)
     {
         if (known[static_cast<size_t> (i)])
