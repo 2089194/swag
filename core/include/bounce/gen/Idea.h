@@ -68,6 +68,7 @@ struct Idea
     Progression chords;
     uint64_t bassSeed = 1;
     uint64_t melodySeed = 1;
+    uint64_t counterSeed = 1;
     uint64_t drumSeed = 1;
 
     uint32_t melodyLockedBars = 0;

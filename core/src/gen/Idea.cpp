@@ -178,6 +178,7 @@ util::Json Idea::toJson() const
     j.set ("chords", chords.toJson());
     j.set ("bassSeed", seedToString (bassSeed));
     j.set ("melodySeed", seedToString (melodySeed));
+    j.set ("counterSeed", seedToString (counterSeed));
     j.set ("drumSeed", seedToString (drumSeed));
     j.set ("melodyLockedBars", static_cast<double> (melodyLockedBars));
     util::Json locked;
@@ -207,6 +208,7 @@ std::optional<Idea> Idea::fromJson (const util::Json& j)
     idea.chords = *prog;
     idea.bassSeed = seedFromJson (j["bassSeed"], prog->seed ^ 0xB455ull);
     idea.melodySeed = seedFromJson (j["melodySeed"], prog->seed ^ 0x3E10ull);
+    idea.counterSeed = seedFromJson (j["counterSeed"], prog->seed ^ 0xC0C0ull);
     idea.drumSeed = seedFromJson (j["drumSeed"], prog->seed ^ 0xD5A3ull);
     idea.melodyLockedBars = static_cast<uint32_t> (j["melodyLockedBars"].asNumber());
     for (const auto& n : j["melodyLockedNotes"].asArray())

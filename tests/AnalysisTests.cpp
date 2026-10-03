@@ -71,7 +71,21 @@ TEST_CASE ("analysis: tempo, key and chords of a synthetic A minor loop")
     const auto r = analyse (audio.data(), audio.size(), sr, {}, [&] (double p) { CHECK (p >= lastProgress); lastProgress = p; return true; });
     CHECK (lastProgress == doctest::Approx (1.0));
 
-    CHECK (r.tempo.bpm == doctest::Approx (bpm).epsilon (0.01));
+    CHECK (r.tempo.bpm == doctest::Approx (bpm).epsilon (0.002));
+
+    // The downbeat is found from where chords change: a bar line (multiple of 4 beats).
+    const double beats = r.tempo.firstBeat * bpm / 60.0;
+    CHECK (std::abs (beats - 4.0 * std::round (beats / 4.0)) < 0.3);
+    CHECK (std::abs (beats) < 0.5); // the song starts on the one
+
+    // Sending the first 4 bars gives the four chords as played.
+    const auto prog = progressionFromDetected (r.chords, r.keys[0].key, r.tempo.bpm, r.tempo.firstBeat, 4);
+    REQUIRE (prog.slots.size() == 4);
+    for (size_t i = 0; i < 4; ++i)
+    {
+        CHECK (prog.slots[i].chord.root == chords[i].root);
+        CHECK (prog.slots[i].chord.family() == chords[i].family());
+    }
     REQUIRE (r.keys.size() == 3);
     CHECK (r.keys[0].key == theory::Key { 9, theory::ScaleType::NaturalMinor });
     CHECK (r.keys[0].confidence > r.keys[1].confidence);
@@ -126,7 +140,8 @@ TEST_CASE ("detected chords become a locked progression with custom lengths")
         { { 9, Q::Minor, {} }, 0.0, 3.0, 0.9 },   // 6 beats
         { { 2, Q::Minor, {} }, 3.0, 4.0, 0.9 },   // 2 beats
         { { 2, Q::Minor, {} }, 4.0, 4.05, 0.9 },  // blip, merged
-        { { 4, Q::Major, {} }, 4.05, 8.0, 0.9 },  // rest of the loop
+        { { 5, Q::Major, {} }, 4.05, 4.3, 0.9 },  // under a beat: dropped
+        { { 4, Q::Major, {} }, 4.3, 8.0, 0.9 },   // rest of the loop
     };
     const auto prog = progressionFromDetected (det, { 9, theory::ScaleType::NaturalMinor }, bpm, 0.0, 4);
     REQUIRE (prog.slots.size() == 3);

@@ -234,10 +234,27 @@ AnalysisResult analyse (const float* mono, size_t numSamples, double sampleRate,
             }
         }
 
+        // Refine on a 0.01 BPM grid with longer multiples (sharper peak, no prior).
+        if (bestBpm > 0)
+        {
+            double refined = bestBpm, refinedScore = -1e300;
+            for (double bpm = bestBpm - 0.25; bpm <= bestBpm + 0.25 + 1e-9; bpm += 0.01)
+            {
+                const double lag = 60.0 * frameRate / bpm;
+                const double sc = acf (lag) + acf (2 * lag) + acf (4 * lag) + acf (8 * lag);
+                if (sc > refinedScore)
+                {
+                    refinedScore = sc;
+                    refined = bpm;
+                }
+            }
+            bestBpm = refined;
+        }
+
         std::vector<double> sorted = scores;
         std::sort (sorted.begin(), sorted.end());
         const double median = sorted.empty() ? 0.0 : sorted[sorted.size() / 2];
-        result.tempo.bpm = std::round (bestBpm * 10.0) / 10.0;
+        result.tempo.bpm = std::round (bestBpm * 100.0) / 100.0;
         result.tempo.confidence = bestScore > 0 ? std::clamp ((bestScore - median) / bestScore, 0.0, 1.0) : 0.0;
         result.tempo.halfTime = result.tempo.bpm / 2.0;
         result.tempo.doubleTime = result.tempo.bpm * 2.0;
@@ -468,6 +485,36 @@ AnalysisResult analyse (const float* mono, size_t numSamples, double sampleRate,
         }
     }
 
+    // --- Downbeat: of the four beat phases, pick the one where most chord changes start a bar.
+    if (result.tempo.bpm > 0.0 && result.chords.size() > 1)
+    {
+        const double beat = 60.0 / result.tempo.bpm;
+        int bestPhase = 0;
+        double bestHits = -1.0;
+        for (int phase = 0; phase < 4; ++phase)
+        {
+            const double origin = result.tempo.firstBeat + phase * beat;
+            double hits = 0.0;
+            for (size_t i = 1; i < result.chords.size(); ++i)
+            {
+                const double bars = (result.chords[i].start - origin) / (4.0 * beat);
+                const double dist = std::abs (bars - std::round (bars)) * 4.0; // in beats
+                hits += dist < 0.5 ? 1.0 : 0.0;
+            }
+            if (hits > bestHits)
+            {
+                bestHits = hits;
+                bestPhase = phase;
+            }
+        }
+        // Earliest downbeat, allowed to sit up to half a beat before 0 so a song that starts on
+        // the one doesn't get wrapped to bar 2.
+        double first = std::fmod (result.tempo.firstBeat + bestPhase * beat, 4.0 * beat);
+        if (first > 4.0 * beat - 0.5 * beat)
+            first -= 4.0 * beat;
+        result.tempo.firstBeat = first;
+    }
+
     report (1.0);
     return result;
 }
@@ -511,7 +558,8 @@ gen::Progression progressionFromDetected (const std::vector<DetectedChord>& chor
         double b = std::round ((c.end - startSeconds) * bpm / 60.0 * 2.0) / 2.0;
         a = std::clamp (a, 0.0, len);
         b = std::clamp (b, 0.0, len);
-        if (b - a < 0.5)
+        // Ignore slivers: anything under a beat (tempo drift / a chord bleeding over the edge).
+        if (b - a < 1.0)
             continue;
         if (! spans.empty() && spans.back().chord == c.chord)
             spans.back().b = b;

@@ -16,7 +16,7 @@ struct TempoResult
 {
     double bpm = 0.0;
     double confidence = 0.0;   // 0..1
-    double firstBeat = 0.0;    // seconds
+    double firstBeat = 0.0;    // seconds: the first downbeat (bar start), estimated from chord changes
     double halfTime = 0.0;     // bpm / 2
     double doubleTime = 0.0;   // bpm * 2
 };
@@ -83,8 +83,8 @@ SpeedChange speedBySemitones (const theory::Key& key, double bpm, double semiton
 SpeedChange speedByPercent (const theory::Key& key, double bpm, double percent);
 
 /** Turns detected chords into a progression: chords are snapped to a half-beat grid at the
-    given tempo, starting at `startSeconds`, filling `bars` bars. Chords shorter than half a beat
-    are merged. All slots come back locked so Generate keeps them until you unlock some. */
+    given tempo, starting at `startSeconds`, filling `bars` bars. Chords shorter than a beat
+    inside the window are dropped (their time goes to the neighbours). All slots come back locked so Generate keeps them until you unlock some. */
 gen::Progression progressionFromDetected (const std::vector<DetectedChord>& chords, const theory::Key& key,
                                           double bpm, double startSeconds, int bars, int maxChords = 8);
 
