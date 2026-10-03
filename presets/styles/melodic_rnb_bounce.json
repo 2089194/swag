@@ -1,0 +1,33 @@
+{
+  "id": "melodic_rnb_bounce",
+  "name": "Melodic R&B Bounce",
+  "description": "Neo-soul leaning: maj9, m11, 6/9 and dominant 9ths, slow strums, wide spreads.",
+  "tempo": { "bpm": 136, "halfTime": true },
+  "harmony": {
+    "key": "Eb",
+    "scale": "major",
+    "bars": 4,
+    "chordCount": 4,
+    "complexity": 0.9,
+    "mood": 0.15,
+    "borrowed": 0.4,
+    "majorStart": { "IV": 3.0, "ii": 2.0, "I": 2.0, "vi": 1.5 },
+    "majorTransitions": {
+      "IV": { "iii": 2.5, "V": 2.0, "iv": 1.5, "I": 1.5 },
+      "iii": { "vi": 3.0, "ii": 1.5 },
+      "vi": { "ii": 3.0, "IV": 1.5 },
+      "ii": { "V": 3.0, "I": 1.0, "bVII": 0.8 },
+      "V":  { "I": 2.5, "iii": 1.0, "vi": 1.5 }
+    },
+    "colours": { "maj9": 2.2, "min11": 1.6, "min9": 1.8, "6_9": 1.4, "dom9": 0.9, "maj7s11": 0.8, "dom7sus4": 0.6 }
+  },
+  "voicing": { "style": "spread", "low": 55, "high": 84 },
+  "performance": {
+    "rhythm": "sustain",
+    "swing": 0.15,
+    "strumMs": 22,
+    "velocity": 88,
+    "velocityRandom": 9,
+    "timingRandomMs": 9
+  }
+}

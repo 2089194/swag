@@ -1,0 +1,33 @@
+{
+  "id": "dark_swag",
+  "name": "Dark Swag",
+  "description": "Moody minor loops: min9 and m(maj7) colour, harmonic-minor V, low close voicings.",
+  "tempo": { "bpm": 145, "halfTime": true },
+  "harmony": {
+    "key": "C#",
+    "scale": "natural_minor",
+    "bars": 4,
+    "chordCount": 4,
+    "complexity": 0.6,
+    "mood": -0.6,
+    "borrowed": 0.5,
+    "minorStart": { "i": 3.5, "bVI": 1.5, "iv": 1.0 },
+    "minorTransitions": {
+      "i":   { "bVI": 3.0, "iv": 2.0, "V": 1.5, "bII": 0.6 },
+      "bVI": { "V": 2.0, "iv": 2.0, "i": 1.5, "bII": 0.8 },
+      "iv":  { "V": 2.0, "i": 2.0, "bVI": 1.2 },
+      "V":   { "i": 3.0, "bVI": 2.0 },
+      "bII": { "V": 2.0, "i": 1.5 }
+    },
+    "colours": { "min9": 2.0, "minmaj7": 0.8, "min7": 1.5, "maj7": 1.2, "maj7s11": 0.6, "add9": 0.4, "6_9": 0.2 }
+  },
+  "voicing": { "style": "close", "low": 50, "high": 76 },
+  "performance": {
+    "rhythm": "sustain",
+    "swing": 0.0,
+    "strumMs": 18,
+    "velocity": 86,
+    "velocityRandom": 6,
+    "timingRandomMs": 8
+  }
+}

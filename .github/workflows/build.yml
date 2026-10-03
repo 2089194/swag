@@ -1,0 +1,83 @@
+name: Build & test
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-tests:
+    name: Core tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DBOUNCE_BUILD_PLUGIN=OFF -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+  plugin:
+    name: Plugin (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            pluginval: pluginval_Windows.zip
+            pluginval_bin: ./pluginval.exe
+          - name: macOS
+            os: macos-latest
+            pluginval: pluginval_macOS.zip
+            pluginval_bin: ./pluginval.app/Contents/MacOS/pluginval
+            cmake_extra: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0'
+          - name: Linux
+            os: ubuntu-latest
+            pluginval: pluginval_Linux.zip
+            pluginval_bin: xvfb-run -a ./pluginval
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libx11-dev libxrandr-dev libxinerama-dev \
+            libxext-dev libxcursor-dev libxcomposite-dev libfreetype-dev libfontconfig1-dev xvfb ninja-build
+
+      - name: Configure
+        shell: bash
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_extra }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: pluginval (strictness 10)
+        shell: bash
+        run: |
+          curl -sSL -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/latest/download/${{ matrix.pluginval }}"
+          unzip -q pluginval.zip
+          ${{ matrix.pluginval_bin }} --strictness-level 10 --validate-in-process \
+            --validate "build/plugin/Bounce_artefacts/Release/VST3/Bounce.vst3"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bounce-${{ matrix.name }}
+          path: |
+            build/plugin/Bounce_artefacts/Release/VST3
+            build/plugin/Bounce_artefacts/Release/AU
+            build/plugin/Bounce_artefacts/Release/Standalone
+          if-no-files-found: ignore

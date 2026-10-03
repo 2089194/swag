@@ -1,0 +1,32 @@
+{
+  "id": "plugg_ish",
+  "name": "Plugg-ish",
+  "description": "Dreamy major-key bells and pads: maj7/maj9 with the 3rd on top, half-bar re-strikes.",
+  "tempo": { "bpm": 155, "halfTime": true },
+  "harmony": {
+    "key": "E",
+    "scale": "major",
+    "bars": 4,
+    "chordCount": 4,
+    "complexity": 0.45,
+    "mood": 0.5,
+    "borrowed": 0.15,
+    "majorStart": { "I": 3.0, "IV": 2.0, "vi": 1.0 },
+    "majorTransitions": {
+      "I":   { "vi": 2.5, "iii": 2.5, "IV": 2.5, "ii": 1.0 },
+      "iii": { "vi": 2.5, "IV": 2.5 },
+      "vi":  { "IV": 3.0, "ii": 1.5, "iii": 1.0 },
+      "IV":  { "I": 2.5, "V": 1.5, "iii": 1.5 }
+    },
+    "colours": { "maj7": 2.2, "maj9": 1.6, "min7": 1.6, "add9": 1.0, "sus2": 0.8, "dom7": 0.1, "dom9": 0.0 }
+  },
+  "voicing": { "style": "third_on_top", "low": 57, "high": 86 },
+  "performance": {
+    "rhythm": "half",
+    "swing": 0.0,
+    "strumMs": 8,
+    "velocity": 88,
+    "velocityRandom": 6,
+    "timingRandomMs": 4
+  }
+}

@@ -1,0 +1,33 @@
+{
+  // Default style. Every field is optional: anything left out falls back to the built-in
+  // defaults (see README.md in this folder).
+  "id": "swag_bounce",
+  "name": "Swag Bounce",
+  "description": "Lush minor-key bounce: maj7/min9 colours, borrowed bVI/bVII, spread voicings.",
+  "tempo": { "bpm": 150, "halfTime": true },
+  "harmony": {
+    "key": "A",
+    "scale": "natural_minor",
+    "bars": 4,
+    "chordCount": 4,
+    "complexity": 0.65,
+    "mood": 0.0,
+    "borrowed": 0.35,
+    "minorStart": { "i": 3.0, "bVI": 2.5, "iv": 1.5, "bIII": 1.0 },
+    "minorTransitions": {
+      "i":    { "bVI": 3.0, "iv": 2.5, "bVII": 2.0, "bIII": 1.5, "v": 1.2 },
+      "bVI":  { "bVII": 2.5, "bIII": 2.0, "iv": 2.0, "i": 1.5, "v": 1.2 },
+      "iv":   { "i": 2.0, "bVII": 2.0, "v": 1.8, "bVI": 1.2 }
+    },
+    "colours": { "maj7": 1.8, "min9": 1.8, "min7": 1.4, "add9": 1.2, "dom7": 0.2 }
+  },
+  "voicing": { "style": "spread", "low": 55, "high": 82 },
+  "performance": {
+    "rhythm": "sustain",
+    "swing": 0.1,
+    "strumMs": 12,
+    "velocity": 92,
+    "velocityRandom": 8,
+    "timingRandomMs": 6
+  }
+}

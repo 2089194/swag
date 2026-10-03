@@ -1,0 +1,33 @@
+{
+  "id": "sped_up_flip",
+  "name": "Sped-Up Flip",
+  "description": "Bright, chopped-sample feel: gated chord stabs, add9/maj7 colours, a touch of swing.",
+  "tempo": { "bpm": 160, "halfTime": true },
+  "harmony": {
+    "key": "Db",
+    "scale": "major",
+    "bars": 4,
+    "chordCount": 4,
+    "complexity": 0.5,
+    "mood": 0.35,
+    "borrowed": 0.25,
+    "majorStart": { "I": 3.0, "IV": 2.5, "vi": 1.5 },
+    "majorTransitions": {
+      "I":  { "iii": 2.0, "IV": 3.0, "vi": 2.5 },
+      "IV": { "I": 2.0, "V": 2.5, "iii": 1.5, "iv": 1.0 },
+      "V":  { "vi": 3.0, "I": 2.0 }
+    },
+    "colours": { "add9": 2.0, "maj7": 1.6, "6_9": 1.0, "min7": 1.4, "madd9": 1.2, "dom7": 0.15, "dom9": 0.1 }
+  },
+  "voicing": { "style": "flip_stab", "low": 58, "high": 84 },
+  "performance": {
+    "rhythm": "stabs",
+    "stabSteps": [0, 3, 6, 10, 12],
+    "stabGate": 1.5,
+    "swing": 0.2,
+    "strumMs": 4,
+    "velocity": 100,
+    "velocityRandom": 10,
+    "timingRandomMs": 4
+  }
+}
