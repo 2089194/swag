@@ -21,5 +21,8 @@ if(BOUNCE_BUILD_TESTS)
         GIT_TAG        v2.4.11
         GIT_SHALLOW    TRUE)
     set(DOCTEST_NO_INSTALL ON CACHE BOOL "" FORCE)
+    # doctest 2.4.11 declares cmake_minimum_required(VERSION 3.0), which CMake 4 rejects.
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
     FetchContent_MakeAvailable(doctest)
+    unset(CMAKE_POLICY_VERSION_MINIMUM)
 endif()

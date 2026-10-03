@@ -17,7 +17,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Configure
         run: cmake -S . -B build -DBOUNCE_BUILD_PLUGIN=OFF -DCMAKE_BUILD_TYPE=Release
       - name: Build
@@ -46,7 +46,7 @@ jobs:
             pluginval: pluginval_Linux.zip
             pluginval_bin: xvfb-run -a ./pluginval
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Linux dependencies
         if: runner.os == 'Linux'
