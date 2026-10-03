@@ -29,5 +29,15 @@
     "velocity": 92,
     "velocityRandom": 8,
     "timingRandomMs": 6
+  },
+  "bass": { "mode": "Syncopated Bounce", "density": 0.5, "glide": 0.45, "lockToKick": true },
+  "melody": { "density": 0.5, "feel": "Straight", "pentatonic": 0.65 },
+  "drums": {
+    "swing": 0.12, "rollAmount": 0.5, "percDensity": 0.4, "openHatAmount": 0.4,
+    "kickPatterns": [
+      { "steps": [0, 10], "weight": 2 }, { "steps": [0, 7, 10], "weight": 2 },
+      { "steps": [0, 3, 10], "weight": 1.5 }, { "steps": [0, 6, 11], "weight": 1.5 },
+      { "steps": [0, 10, 11], "weight": 1.2 }, { "steps": [0, 2, 10, 13], "weight": 1 }
+    ]
   }
 }

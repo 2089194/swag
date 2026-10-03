@@ -28,5 +28,11 @@
     "velocity": 88,
     "velocityRandom": 6,
     "timingRandomMs": 4
+  },
+  "bass": { "mode": "Glide Heavy", "density": 0.3, "glide": 0.55, "lockToKick": false },
+  "melody": { "density": 0.55, "feel": "Straight", "pentatonic": 0.85 },
+  "drums": {
+    "swing": 0.0, "rollAmount": 0.45, "percDensity": 0.3, "openHatAmount": 0.5,
+    "openHatSteps": [6, 14]
   }
 }

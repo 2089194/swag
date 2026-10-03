@@ -4,10 +4,10 @@
 #include "UI/BounceLookAndFeel.h"
 #include "UI/ChordStrip.h"
 #include "UI/ChordWheel.h"
-#include "UI/DragMidiButton.h"
-#include "UI/PianoRollPreview.h"
+#include "UI/LabView.h"
+#include "UI/ModulePanel.h"
+#include "UI/PartLanes.h"
 #include "UI/TopBar.h"
-#include "UI/Widgets.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -15,12 +15,14 @@ namespace bounce
 {
 
 /** The whole UI is laid out at a fixed design size inside `content`, then scaled with an
-    AffineTransform, so it stays crisp (everything is vector) from 75% to 200%. */
+    AffineTransform, so it stays crisp (everything is vector) from 75% to 200%. The first time it
+    opens it picks the largest size that fits the screen (up to 100%); after that the user's size
+    is remembered in the plugin state. */
 class BounceEditor : public juce::AudioProcessorEditor
 {
 public:
-    static constexpr int designWidth = 1120;
-    static constexpr int designHeight = 720;
+    static constexpr int designWidth = 1360;
+    static constexpr int designHeight = 860;
 
     explicit BounceEditor (BounceProcessor&);
     ~BounceEditor() override;
@@ -28,6 +30,9 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
+
+    /** Window width that fits the current screen (used for the first open). */
+    static int defaultWidthForScreen();
 
 private:
     class Content : public juce::Component
@@ -37,36 +42,22 @@ private:
         void paint (juce::Graphics&) override;
         void resized() override;
         void tick();
+        void setView (int v);
 
     private:
         BounceProcessor& processor;
         Session& session;
+        int view = 0;
 
         ui::TopBar topBar;
+        ui::ModulePanel modules;
         ui::ChordWheel wheel;
+        ui::MixerPanel mixer;
         ui::ChordStrip strip;
-        ui::PianoRollPreview roll;
+        std::vector<std::unique_ptr<ui::PartLane>> lanes;
+        ui::LabView lab;
 
-        // Chords module.
-        ui::LabeledKnob complexity, mood, borrowed, humanise, swing, octave;
-        ui::LabeledCombo bars, chordCount, rhythm, voicing;
-
-        // Output / export.
-        ui::PillToggle internalSound, midiOut, preview, mute;
-        ui::LabeledKnob level;
-        ui::LabeledCombo midiChannel;
-        ui::DragMidiButton dragChords;
-        juce::TextButton exportButton { "Export to folder..." };
-        juce::TextButton stylesFolderButton { "Styles folder" };
-        juce::TextButton reloadStylesButton { "Reload styles" };
-        juce::String exportStatus;
-
-        juce::Rectangle<int> leftPanel, rightPanel, wheelPanel, bottomPanel;
-        std::unique_ptr<juce::FileChooser> chooser;
-
-        void exportToFolder();
-        void openStylesFolder();
-        void reloadStyles();
+        juce::Rectangle<int> wheelPanel, partsPanel;
     };
 
     BounceProcessor& processor;

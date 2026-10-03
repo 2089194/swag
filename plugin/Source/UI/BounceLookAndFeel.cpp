@@ -165,13 +165,18 @@ void BounceLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton&
             g.strokePath (pill, PathStrokeType (1.0f));
         }
 
-        auto dot = bounds.removeFromLeft (bounds.getHeight()).reduced (bounds.getHeight() * 0.33f);
-        g.setColour (on ? accent : Colours::textFaint);
-        g.fillEllipse (dot);
+        // Short labels (M / S) are centred without the status dot.
+        const bool shortLabel = b.getButtonText().length() <= 2;
+        if (! shortLabel)
+        {
+            auto dot = bounds.removeFromLeft (bounds.getHeight()).reduced (bounds.getHeight() * 0.33f);
+            g.setColour (on ? accent : Colours::textFaint);
+            g.fillEllipse (dot);
+        }
 
         g.setColour (on ? Colours::text : Colours::textDim);
         g.setFont (uiFont (jmin (12.0f, bounds.getHeight() * 0.55f), true));
-        g.drawText (b.getButtonText().toUpperCase(), bounds.withTrimmedRight (8.0f), Justification::centred);
+        g.drawText (b.getButtonText().toUpperCase(), shortLabel ? bounds : bounds.withTrimmedRight (8.0f), Justification::centred);
         return;
     }
 
@@ -200,7 +205,16 @@ void BounceLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& b
 
     if (primary)
     {
-        drawGlow (g, shape, accent, highlighted ? 10.0f : 6.0f, 1.0f);
+        if (b.isEnabled())
+            drawGlow (g, shape, accent, highlighted ? 10.0f : 6.0f, 1.0f);
+        if (! b.isEnabled())
+        {
+            g.setColour (Colours::panelLight);
+            g.fillPath (shape);
+            g.setColour (Colours::outline);
+            g.strokePath (shape, PathStrokeType (1.0f));
+            return;
+        }
         g.setGradientFill (ColourGradient (accent.brighter (0.15f), bounds.getX(), bounds.getY(),
                                            accent.darker (0.35f), bounds.getX(), bounds.getBottom(), false));
         g.fillPath (shape);

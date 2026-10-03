@@ -196,8 +196,8 @@ void IconButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 
 //==============================================================================
 LabeledKnob::LabeledKnob (juce::AudioProcessorValueTreeState& state, const juce::String& paramId,
-                          const juce::String& c, juce::Colour accent)
-    : caption (c), param (state.getParameter (paramId))
+                          const juce::String& c, juce::Colour accent, bool isCompact)
+    : caption (c), compact (isCompact), param (state.getParameter (paramId))
 {
     slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
@@ -216,17 +216,27 @@ LabeledKnob::LabeledKnob (juce::AudioProcessorValueTreeState& state, const juce:
 void LabeledKnob::resized()
 {
     auto b = getLocalBounds();
-    b.removeFromBottom (30);
+    b.removeFromBottom (compact ? 14 : 30);
     slider.setBounds (b);
 }
 
 void LabeledKnob::paint (juce::Graphics& g)
 {
     auto b = getLocalBounds().toFloat();
-    auto text = b.removeFromBottom (30.0f);
-
     const bool active = slider.isMouseOverOrDragging();
     const auto valueText = param != nullptr ? param->getCurrentValueAsText() : juce::String (slider.getValue(), 2);
+
+    if (compact)
+    {
+        // One line: the caption, swapped for the value while hovering/dragging.
+        g.setFont (uiFont (10.5f, true));
+        g.setColour (active ? accentOf (slider) : Colours::textDim);
+        g.drawFittedText (active ? valueText : caption.toUpperCase(), b.removeFromBottom (14.0f).toNearestInt(),
+                          juce::Justification::centred, 1);
+        return;
+    }
+
+    auto text = b.removeFromBottom (30.0f);
 
     g.setFont (uiFont (12.0f, true));
     g.setColour (Colours::textDim);
@@ -263,6 +273,67 @@ void LabeledCombo::paint (juce::Graphics& g)
     g.setColour (Colours::textDim);
     g.setFont (uiFont (11.5f, true));
     g.drawText (caption.toUpperCase(), getLocalBounds().removeFromTop (14), juce::Justification::centredLeft);
+}
+
+//==============================================================================
+SegmentedChoice::SegmentedChoice (juce::AudioProcessorValueTreeState& s, const juce::String& id,
+                                  juce::StringArray l, juce::Colour a)
+    : state (s), paramId (id), labels (std::move (l)), accent (a)
+{
+    state.addParameterListener (paramId, this);
+    setMouseCursor (juce::MouseCursor::PointingHandCursor);
+}
+
+SegmentedChoice::~SegmentedChoice()
+{
+    state.removeParameterListener (paramId, this);
+}
+
+int SegmentedChoice::current() const
+{
+    return juce::roundToInt (state.getRawParameterValue (paramId)->load());
+}
+
+void SegmentedChoice::mouseUp (const juce::MouseEvent& e)
+{
+    if (labels.isEmpty())
+        return;
+    const int idx = juce::jlimit (0, labels.size() - 1, e.x * labels.size() / juce::jmax (1, getWidth()));
+    if (auto* p = state.getParameter (paramId))
+    {
+        p->beginChangeGesture();
+        p->setValueNotifyingHost (p->convertTo0to1 (static_cast<float> (idx)));
+        p->endChangeGesture();
+    }
+}
+
+void SegmentedChoice::paint (juce::Graphics& g)
+{
+    auto b = getLocalBounds().toFloat().reduced (0.5f);
+    g.setColour (Colours::well);
+    g.fillRoundedRectangle (b, b.getHeight() / 2.0f);
+    g.setColour (Colours::outline);
+    g.drawRoundedRectangle (b, b.getHeight() / 2.0f, 1.0f);
+
+    const float w = b.getWidth() / static_cast<float> (juce::jmax (1, labels.size()));
+    const int sel = current();
+    for (int i = 0; i < labels.size(); ++i)
+    {
+        auto seg = juce::Rectangle<float> (b.getX() + w * static_cast<float> (i), b.getY(), w, b.getHeight());
+        if (i == sel)
+        {
+            juce::Path p;
+            p.addRoundedRectangle (seg.reduced (2.0f), (b.getHeight() - 4.0f) / 2.0f);
+            drawGlow (g, p, accent, 5.0f, 1.0f);
+            g.setColour (accent.withAlpha (0.25f));
+            g.fillPath (p);
+            g.setColour (accent);
+            g.strokePath (p, juce::PathStrokeType (1.0f));
+        }
+        g.setColour (i == sel ? Colours::text : Colours::textDim);
+        g.setFont (uiFont (juce::jmin (12.0f, b.getHeight() * 0.5f), true));
+        g.drawFittedText (labels[i], seg.toNearestInt(), juce::Justification::centred, 1);
+    }
 }
 
 //==============================================================================

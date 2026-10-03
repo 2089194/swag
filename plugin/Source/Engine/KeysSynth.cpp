@@ -32,6 +32,7 @@ void KeysSynth::prepare (double newSampleRate, int maxBlockSize, int numChannels
 {
     sampleRate = newSampleRate;
     scratch.setSize (2, juce::jmax (1, maxBlockSize), false, true, true);
+    pitchMod.setSize (1, juce::jmax (1, maxBlockSize), false, true, true);
 
     juce::dsp::ProcessSpec spec { sampleRate, static_cast<juce::uint32> (juce::jmax (1, maxBlockSize)), 2 };
     chorus.prepare (spec);
@@ -41,14 +42,6 @@ void KeysSynth::prepare (double newSampleRate, int maxBlockSize, int numChannels
     chorus.setFeedback (0.0f);
     chorus.setMix (0.35f);
 
-    reverb.setSampleRate (sampleRate);
-    juce::Reverb::Parameters rp;
-    rp.roomSize = 0.72f;
-    rp.damping = 0.55f;
-    rp.wetLevel = 0.22f;
-    rp.dryLevel = 0.85f;
-    rp.width = 1.0f;
-    reverb.setParameters (rp);
 
     juce::ADSR::Parameters ap { 0.006f, 0.9f, 0.55f, 0.45f };
     for (auto& v : voices)
@@ -57,7 +50,6 @@ void KeysSynth::prepare (double newSampleRate, int maxBlockSize, int numChannels
         v.env.setParameters (ap);
     }
 
-    gain.reset (sampleRate, 0.03);
     juce::ignoreUnused (numChannels);
     reset();
 }
@@ -71,7 +63,6 @@ void KeysSynth::reset()
         v.lp1 = v.lp2 = 0.0f;
     }
     chorus.reset();
-    reverb.reset();
 }
 
 void KeysSynth::noteOn (int channel, int note, float velocity)
@@ -123,10 +114,24 @@ void KeysSynth::noteOff (int channel, int note)
             v.env.noteOff();
 }
 
-void KeysSynth::renderVoices (int start, int num)
+void KeysSynth::renderVoices (int start, int num, float wobble)
 {
     auto* left = scratch.getWritePointer (0);
     auto* right = scratch.getWritePointer (1);
+    auto* mod = pitchMod.getWritePointer (0);
+
+    // Shared tape wow (0.55 Hz) + flutter (7 Hz): one pitch factor per sample for all voices.
+    const double wowInc = 0.55 / sampleRate, flutterInc = 7.0 / sampleRate;
+    for (int i = start; i < start + num; ++i)
+    {
+        const double cents = wobble * (22.0 * std::sin (juce::MathConstants<double>::twoPi * wowPhase)
+                                       + 4.0 * std::sin (juce::MathConstants<double>::twoPi * flutterPhase));
+        mod[i] = static_cast<float> (std::pow (2.0, cents / 1200.0));
+        wowPhase += wowInc;
+        flutterPhase += flutterInc;
+        if (wowPhase >= 1.0) wowPhase -= 1.0;
+        if (flutterPhase >= 1.0) flutterPhase -= 1.0;
+    }
 
     for (auto& v : voices)
     {
@@ -135,6 +140,8 @@ void KeysSynth::renderVoices (int start, int num)
 
         const float amp = 0.11f * (0.35f + 0.65f * v.velocity);
         const float gl = std::sqrt (1.0f - v.pan), gr = std::sqrt (v.pan);
+        // Lo-fi: wobble also darkens the tone.
+        const float coeff = v.cutoffCoeff * (1.0f - 0.55f * wobble);
 
         for (int i = start; i < start + num; ++i)
         {
@@ -145,13 +152,13 @@ void KeysSynth::renderVoices (int start, int num)
 
             for (int o = 0; o < 3; ++o)
             {
-                v.phase[o] += v.inc[o];
+                v.phase[o] += v.inc[o] * mod[i];
                 if (v.phase[o] >= 1.0)
                     v.phase[o] -= 1.0;
             }
 
-            v.lp1 += v.cutoffCoeff * (static_cast<float> (s) - v.lp1);
-            v.lp2 += v.cutoffCoeff * (v.lp1 - v.lp2);
+            v.lp1 += coeff * (static_cast<float> (s) - v.lp1);
+            v.lp2 += coeff * (v.lp1 - v.lp2);
 
             const float out = v.lp2 * amp * v.env.getNextSample();
             left[i] += out * gl;
@@ -163,13 +170,14 @@ void KeysSynth::renderVoices (int start, int num)
     }
 }
 
-void KeysSynth::render (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi, float gainLinear)
+void KeysSynth::render (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi, float wobble)
 {
     const int numSamples = buffer.getNumSamples();
     if (numSamples > scratch.getNumSamples())
         return; // host exceeded the promised block size; skip rather than allocate
 
     scratch.clear (0, numSamples);
+    wobble = juce::jlimit (0.0f, 1.0f, wobble);
 
     int pos = 0;
     for (const auto meta : midi)
@@ -177,7 +185,7 @@ void KeysSynth::render (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer
         const int evPos = juce::jlimit (0, numSamples, meta.samplePosition);
         if (evPos > pos)
         {
-            renderVoices (pos, evPos - pos);
+            renderVoices (pos, evPos - pos, wobble);
             pos = evPos;
         }
 
@@ -191,20 +199,24 @@ void KeysSynth::render (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer
                 v.env.noteOff();
     }
     if (pos < numSamples)
-        renderVoices (pos, numSamples - pos);
+        renderVoices (pos, numSamples - pos, wobble);
 
     juce::dsp::AudioBlock<float> block (scratch.getArrayOfWritePointers(), 2, static_cast<size_t> (numSamples));
     chorus.process (juce::dsp::ProcessContextReplacing<float> (block));
-    reverb.processStereo (scratch.getWritePointer (0), scratch.getWritePointer (1), numSamples);
 
-    gain.setTargetValue (gainLinear);
     float blockPeak = 0.0f;
     const int outChannels = buffer.getNumChannels();
     for (int i = 0; i < numSamples; ++i)
     {
-        const float g = gain.getNextValue();
-        const float l = scratch.getSample (0, i) * g;
-        const float r = scratch.getSample (1, i) * g;
+        // Tape hiss, only with wobble and only while something is sounding.
+        hissState = hissState * 1664525u + 1013904223u;
+        const float white = static_cast<float> (hissState >> 8) / 8388608.0f - 1.0f;
+        hissLp += 0.3f * (white - hissLp);
+        const float level = std::abs (scratch.getSample (0, i)) + std::abs (scratch.getSample (1, i));
+        const float hiss = wobble * 0.004f * hissLp * juce::jmin (1.0f, level * 20.0f);
+
+        const float l = scratch.getSample (0, i) + hiss;
+        const float r = scratch.getSample (1, i) + hiss;
         if (outChannels == 1)
             buffer.addSample (0, i, 0.5f * (l + r));
         else if (outChannels >= 2)

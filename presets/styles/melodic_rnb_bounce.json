@@ -29,5 +29,10 @@
     "velocity": 88,
     "velocityRandom": 9,
     "timingRandomMs": 9
+  },
+  "bass": { "mode": "Root Follow", "density": 0.4, "glide": 0.3, "lockToKick": true },
+  "melody": { "density": 0.45, "feel": "Swung", "pentatonic": 0.5 },
+  "drums": {
+    "swing": 0.25, "rollAmount": 0.35, "percDensity": 0.55, "openHatAmount": 0.35
   }
 }

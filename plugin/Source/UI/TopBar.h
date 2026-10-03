@@ -27,6 +27,10 @@ public:
 
     void refreshStyles();
 
+    /** 0 = generator, 1 = Key & BPM Lab. */
+    std::function<void (int)> onViewChange;
+    void setView (int v) { view = v; repaint(); }
+
 private:
     Session& session;
     juce::AudioProcessorValueTreeState& apvts;
@@ -44,7 +48,8 @@ private:
     IconButton redoButton { "Redo (Ctrl+Shift+Z)", Icons::redo() };
     IconButton historyButton { "Idea history: the last 50 generated ideas", Icons::history() };
 
-    juce::Rectangle<int> tempoArea, seedArea;
+    juce::Rectangle<int> tempoArea, seedArea, viewArea;
+    int view = 0;
     double shownBpm = -1.0;
     int shownTempoView = -1;
 

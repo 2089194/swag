@@ -37,6 +37,11 @@ void showSlotMenu (Session& session, int slot, juce::Component& target)
     }
     m.addSubMenu ("Voicing", voicing);
     m.addItem (7, "Reset voicing edits", s.inversion.has_value() || s.voicing.has_value() || s.octave != 0);
+    m.addSeparator();
+    const bool canResize = prog.slots.size() > 1;
+    m.addItem (8, "Longer (+1 beat)", canResize);
+    m.addItem (9, "Shorter (-1 beat)", canResize && prog.slotLength (slot) > 1.0);
+    m.addItem (10, "Even chord lengths", prog.hasCustomLengths());
 
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&target),
                      [&session, slot] (int result)
@@ -53,6 +58,9 @@ void showSlotMenu (Session& session, int slot, juce::Component& target)
                 session.setSlotVoicing (slot, std::nullopt);
                 session.shiftOctave (slot, -session.progression().slots[static_cast<size_t> (slot)].octave);
                 break;
+            case 8: session.setSlotLength (slot, session.progression().slotLength (slot) + 1.0); break;
+            case 9: session.setSlotLength (slot, session.progression().slotLength (slot) - 1.0); break;
+            case 10: session.resetSlotLengths(); break;
             case 100: session.setSlotVoicing (slot, std::nullopt); break;
             default:
                 if (result > 100)

@@ -29,5 +29,14 @@
     "velocity": 86,
     "velocityRandom": 6,
     "timingRandomMs": 8
+  },
+  "bass": { "mode": "Glide Heavy", "density": 0.45, "glide": 0.7, "lockToKick": true },
+  "melody": { "density": 0.35, "feel": "Triplet", "pentatonic": 0.3 },
+  "drums": {
+    "swing": 0.05, "rollAmount": 0.7, "percDensity": 0.25, "openHatAmount": 0.3,
+    "kickPatterns": [
+      { "steps": [0, 10], "weight": 2 }, { "steps": [0, 3, 10], "weight": 2 },
+      { "steps": [0, 7, 9, 14], "weight": 1.5 }, { "steps": [0, 11, 14], "weight": 1 }
+    ]
   }
 }

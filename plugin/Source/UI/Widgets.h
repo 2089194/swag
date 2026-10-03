@@ -51,7 +51,7 @@ class LabeledKnob : public juce::Component,
 {
 public:
     LabeledKnob (juce::AudioProcessorValueTreeState& state, const juce::String& paramId,
-                 const juce::String& caption, juce::Colour accent);
+                 const juce::String& caption, juce::Colour accent, bool compact = false);
 
     void resized() override;
     void paint (juce::Graphics&) override;
@@ -62,6 +62,7 @@ public:
 private:
     juce::Slider slider;
     juce::String caption;
+    bool compact = false;
     juce::RangedAudioParameter* param = nullptr;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
 
@@ -85,6 +86,30 @@ private:
     juce::ComboBox combo;
     juce::String caption;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> attachment;
+};
+
+/** Segmented pill selector bound to a choice parameter (e.g. Normal / ½ / 2x). */
+class SegmentedChoice : public juce::Component,
+                        private juce::AudioProcessorValueTreeState::Listener,
+                        private juce::AsyncUpdater
+{
+public:
+    SegmentedChoice (juce::AudioProcessorValueTreeState& state, const juce::String& paramId,
+                     juce::StringArray labels, juce::Colour accent);
+    ~SegmentedChoice() override;
+
+    void paint (juce::Graphics&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+
+private:
+    juce::AudioProcessorValueTreeState& state;
+    juce::String paramId;
+    juce::StringArray labels;
+    juce::Colour accent;
+
+    int current() const;
+    void parameterChanged (const juce::String&, float) override { triggerAsyncUpdate(); }
+    void handleAsyncUpdate() override { repaint(); }
 };
 
 /** Pill toggle bound to a bool parameter. */

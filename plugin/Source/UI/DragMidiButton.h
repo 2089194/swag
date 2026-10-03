@@ -26,6 +26,9 @@ public:
 
     DragMidiButton (const juce::String& label, juce::Colour accent, std::function<Payload()> payloadSource);
 
+    /** Compact: icon + short label only (for lane headers). */
+    void setCompact (bool c) { compact = c; repaint(); }
+
     void paint (juce::Graphics&) override;
     void mouseEnter (const juce::MouseEvent&) override { repaint(); }
     void mouseExit (const juce::MouseEvent&) override { repaint(); }
@@ -37,6 +40,7 @@ private:
     juce::Colour accent;
     std::function<Payload()> payloadSource;
     bool dragging = false;
+    bool compact = false;
     juce::String status;
 };
 

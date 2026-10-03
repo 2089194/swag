@@ -23,8 +23,9 @@ public:
     void prepare (double sampleRate, int maxBlockSize, int numChannels);
     void reset();
 
-    /** Renders `midi` and adds the result to `buffer`. */
-    void render (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi, float gainLinear);
+    /** Renders `midi` and adds the result to `buffer`. `wobble` (0..1) adds tape wow/flutter,
+        a darker tone and a little hiss for the lo-fi sound. */
+    void render (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi, float wobble);
 
     /** Any thread: output peak for the UI meter. */
     float getPeakLevel() const noexcept { return peak.load (std::memory_order_relaxed); }
@@ -47,15 +48,16 @@ private:
 
     void noteOn (int channel, int note, float velocity);
     void noteOff (int channel, int note);
-    void renderVoices (int start, int num);
+    void renderVoices (int start, int num, float wobble);
 
     double sampleRate = 44100.0;
     uint32_t ageCounter = 0;
     std::array<Voice, numVoices> voices;
-    juce::AudioBuffer<float> scratch;
+    juce::AudioBuffer<float> scratch, pitchMod;
     juce::dsp::Chorus<float> chorus;
-    juce::Reverb reverb;
-    juce::SmoothedValue<float> gain;
+    double wowPhase = 0.0, flutterPhase = 0.0;
+    uint32_t hissState = 0x9E3779B9u;
+    float hissLp = 0.0f;
     std::atomic<float> peak { 0.0f };
 };
 

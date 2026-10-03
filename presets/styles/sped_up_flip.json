@@ -29,5 +29,12 @@
     "velocity": 100,
     "velocityRandom": 10,
     "timingRandomMs": 4
+  },
+  "bass": { "mode": "Octave Jumper", "density": 0.6, "glide": 0.3, "lockToKick": true },
+  "melody": { "density": 0.6, "feel": "Swung", "pentatonic": 0.7 },
+  "drums": {
+    "swing": 0.2, "rollAmount": 0.6, "percDensity": 0.5, "openHatAmount": 0.5,
+    "hats16ths": true,
+    "percPatterns": [[3, 11], [6, 13], [2, 7, 10, 15]]
   }
 }

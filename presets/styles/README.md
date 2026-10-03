@@ -64,6 +64,27 @@ a preset only needs to state what makes it different.
     "velocity": 92,
     "velocityRandom": 8,
     "timingRandomMs": 6
+  },
+
+  "bass": {
+    "mode": "Syncopated Bounce",  // Root Follow, Syncopated Bounce, Octave Jumper, Glide Heavy, Sustain
+    "density": 0.5, "glide": 0.45, "lockToKick": true
+  },
+
+  "melody": {
+    "density": 0.5,
+    "feel": "Straight",           // Straight, Swung, Triplet
+    "pentatonic": 0.65            // preference for pentatonic scale tones
+  },
+
+  "drums": {
+    "swing": 0.12, "rollAmount": 0.5, "percDensity": 0.4, "openHatAmount": 0.4,
+    "halfTime": true,             // clap on beat 3 (false = 2 and 4)
+    "hats16ths": false,           // base hat grid: 8ths or 16ths
+    // Kick patterns as 16th steps (0..15) per bar; plain arrays have weight 1.
+    "kickPatterns": [ { "steps": [0, 10], "weight": 2 }, [0, 7, 10] ],
+    "percPatterns": [ [3, 11], [6, 13] ],
+    "openHatSteps": [6, 14]
   }
 }
 ```

@@ -30,11 +30,17 @@ target_sources(Bounce PRIVATE
     Source/State/Session.cpp
     Source/Engine/PatternPlayer.cpp
     Source/Engine/KeysSynth.cpp
+    Source/Engine/Voices.cpp
+    Source/Engine/DrumSampler.cpp
+    Source/Engine/Mixer.cpp
+    Source/Analysis/LabModel.cpp
     Source/Midi/MidiExport.cpp
     Source/UI/BounceLookAndFeel.cpp
     Source/UI/ChordWheel.cpp
     Source/UI/ChordStrip.cpp
-    Source/UI/PianoRollPreview.cpp
+    Source/UI/PartLanes.cpp
+    Source/UI/ModulePanel.cpp
+    Source/UI/LabView.cpp
     Source/UI/DragMidiButton.cpp
     Source/UI/TopBar.cpp
     Source/UI/Widgets.cpp)
@@ -47,13 +53,15 @@ target_compile_definitions(Bounce PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_DISPLAY_SPLASH_SCREEN=0
     JUCE_REPORT_APP_USAGE=0
-    JUCE_MODAL_LOOPS_PERMITTED=0)
+    JUCE_MODAL_LOOPS_PERMITTED=0
+    JUCE_USE_MP3AUDIOFORMAT=1)
 
 target_link_libraries(Bounce
     PRIVATE
         bounce::core
         BounceData
         juce::juce_audio_utils
+        juce::juce_audio_formats
         juce::juce_dsp
     PUBLIC
         juce::juce_recommended_config_flags

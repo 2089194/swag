@@ -56,7 +56,7 @@ void DragMidiButton::paint (juce::Graphics& g)
     const bool hot = isMouseOver() || dragging;
 
     juce::Path shape;
-    shape.addRoundedRectangle (b, 10.0f);
+    shape.addRoundedRectangle (b, compact ? 6.0f : 10.0f);
     if (hot)
         drawGlow (g, shape, accent, 8.0f, 1.0f);
 
@@ -69,6 +69,18 @@ void DragMidiButton::paint (juce::Graphics& g)
     juce::PathStrokeType (1.2f).createDashedStroke (dashed, shape, dashes, 2);
     g.setColour (hot ? accent : Colours::textFaint);
     g.fillPath (dashed);
+
+    if (compact)
+    {
+        auto iconArea = b.removeFromLeft (b.getHeight()).reduced (5.0f);
+        auto icon = Icons::drag();
+        icon.applyTransform (juce::AffineTransform::scale (iconArea.getHeight()).translated (iconArea.getX(), iconArea.getY()));
+        g.setColour (hot ? accent : Colours::text);
+        g.fillPath (icon);
+        g.setFont (uiFont (11.0f, true));
+        g.drawFittedText (label, b.withTrimmedRight (4.0f).toNearestInt(), juce::Justification::centredLeft, 1);
+        return;
+    }
 
     auto content = b.reduced (12.0f, 8.0f);
     auto iconArea = content.removeFromLeft (content.getHeight()).withSizeKeepingCentre (26.0f, 26.0f);

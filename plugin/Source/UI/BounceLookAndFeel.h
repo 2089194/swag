@@ -40,6 +40,9 @@ void drawPanel (juce::Graphics& g, juce::Rectangle<float> bounds, const juce::St
 
 juce::Font uiFont (float height, bool bold = false);
 
+/** UTF-8 literal -> juce::String (juce::String (const char*) assumes ASCII). */
+inline juce::String u8 (const char* text) { return juce::String::fromUTF8 (text); }
+
 class BounceLookAndFeel : public juce::LookAndFeel_V4
 {
 public:

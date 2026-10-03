@@ -87,8 +87,8 @@ void TopBar::showHistoryMenu()
     for (const auto& idea : ideas)
     {
         juce::String text (idea.label);
-        text << "   (" << idea.progression.key.name() << ")";
-        m.addItem (id++, text, true, idea.progression == session.progression());
+        text << "   (" << idea.idea.chords.key.name() << ")";
+        m.addItem (id++, text, true, idea.idea == session.idea());
     }
 
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&historyButton),
@@ -102,18 +102,29 @@ void TopBar::showHistoryMenu()
 void TopBar::tick()
 {
     const double bpm = hostBpm ? hostBpm() : 0.0;
-    const int view = juce::roundToInt (apvts.getRawParameterValue (params::tempoView)->load());
-    if (! juce::exactlyEqual (bpm, shownBpm) || view != shownTempoView)
+    const int tempoView = juce::roundToInt (apvts.getRawParameterValue (params::tempoView)->load());
+    if (! juce::exactlyEqual (bpm, shownBpm) || tempoView != shownTempoView)
     {
         shownBpm = bpm;
-        shownTempoView = view;
+        shownTempoView = tempoView;
         repaint (tempoArea);
     }
 }
 
 void TopBar::mouseUp (const juce::MouseEvent& e)
 {
-    if (tempoArea.contains (e.getPosition()))
+    if (viewArea.contains (e.getPosition()))
+    {
+        const int v = e.x < viewArea.getCentreX() ? 0 : 1;
+        if (v != view)
+        {
+            view = v;
+            repaint();
+            if (onViewChange)
+                onViewChange (view);
+        }
+    }
+    else if (tempoArea.contains (e.getPosition()))
     {
         // Click cycles Normal -> Half-time -> Double-time.
         if (auto* p = apvts.getParameter (params::tempoView))
@@ -181,10 +192,36 @@ void TopBar::paint (juce::Graphics& g)
     g.setGradientFill (juce::ColourGradient (Colours::chords, logo.getX(), 0.0f, Colours::bass, logo.getX() + 120.0f, 0.0f, false));
     g.fillPath (text);
 
+    // Generator / Lab switch.
+    {
+        const auto v = viewArea.toFloat();
+        g.setColour (Colours::well);
+        g.fillRoundedRectangle (v, v.getHeight() / 2.0f);
+        const char* names[] = { "GENERATOR", "LAB" };
+        const juce::Colour cols[] = { Colours::chords, Colours::good };
+        for (int i = 0; i < 2; ++i)
+        {
+            auto seg = v.withWidth (v.getWidth() / 2.0f).translated (v.getWidth() / 2.0f * static_cast<float> (i), 0.0f).reduced (2.0f);
+            if (i == view)
+            {
+                juce::Path p;
+                p.addRoundedRectangle (seg, seg.getHeight() / 2.0f);
+                drawGlow (g, p, cols[i], 5.0f, 1.0f);
+                g.setColour (cols[i].withAlpha (0.25f));
+                g.fillPath (p);
+                g.setColour (cols[i]);
+                g.strokePath (p, juce::PathStrokeType (1.0f));
+            }
+            g.setColour (i == view ? Colours::text : Colours::textDim);
+            g.setFont (uiFont (11.5f, true));
+            g.drawText (names[i], seg, juce::Justification::centred);
+        }
+    }
+
     // Tempo readout (host-synced).
     const double bpm = shownBpm > 0.0 ? shownBpm : session.tempo();
-    const int view = juce::jmax (0, shownTempoView);
-    const double shown = view == 1 ? bpm / 2.0 : view == 2 ? bpm * 2.0 : bpm;
+    const int tempoView = juce::jmax (0, shownTempoView);
+    const double shown = tempoView == 1 ? bpm / 2.0 : tempoView == 2 ? bpm * 2.0 : bpm;
     const auto t = tempoArea.toFloat();
     g.setColour (Colours::well);
     g.fillRoundedRectangle (t, 6.0f);
@@ -196,7 +233,7 @@ void TopBar::paint (juce::Graphics& g)
     g.setColour (shownBpm > 0.0 ? Colours::good : Colours::textDim);
     g.setFont (uiFont (9.5f, true));
     const char* viewName[] = { "BPM", "BPM \xc2\xbd-TIME", "BPM 2X" };
-    g.drawText (juce::String (shownBpm > 0.0 ? "HOST " : "STYLE ") + juce::String::fromUTF8 (viewName[view]), t.withTrimmedTop (t.getHeight() - 16.0f),
+    g.drawText (juce::String (shownBpm > 0.0 ? "HOST " : "STYLE ") + juce::String::fromUTF8 (viewName[tempoView]), t.withTrimmedTop (t.getHeight() - 16.0f),
                 juce::Justification::centredTop);
 
     // Seed (click to copy).
@@ -213,6 +250,8 @@ void TopBar::resized()
 {
     auto b = getLocalBounds().reduced (12, 10);
     b.removeFromLeft (150); // logo
+    viewArea = b.removeFromLeft (190).reduced (0, 4);
+    b.removeFromLeft (16);
 
     styleBox.setBounds (b.removeFromLeft (170));
     b.removeFromLeft (10);
