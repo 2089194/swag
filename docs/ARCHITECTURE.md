@@ -146,4 +146,4 @@ Animation runs from a `VBlankAttachment` that reads atomics.
 |---|---|
 | `bounce_tests` (77 cases) | Theory, voicing, the chord generator (in key, locks, determinism, borrowed sources, custom lengths), renderer, 808 (roots, register, lock to kick, glides), melody (in key, chord tones on strong beats, monophonic, density, repetition, bar locks), counter-melody (no clashes, fills gaps), drums (backbone, roll rates/curves/pitch, maps, style JSON), ideas/edits/arrangement, analysis of synthesised audio (BPM within 0.2%, key, chords, downbeat, detected → progression), speed helper, MIDI files with CCs and markers, JSON, presets, RNG, triple buffer |
 | `bounce_engine_tests` (13 cases) | Pattern player (bar-aligned wrap, pairing, chase, swap, jumps, preview), 808 glide/release, lead types, keys wobble, synthesised kit, sampler hot-swap, mixer mute/tails |
-| pluginval (CI) | Strictness 10 on Windows, macOS and Linux |
+| pluginval (CI) | Strictness 10 on Windows x64 |

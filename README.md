@@ -1,15 +1,28 @@
 # BOUNCE
 
-A VST3/AU instrument that sketches the building blocks of **swag / bounce** type beats (chords,
+A VST3 instrument for **Windows 64-bit** that sketches the building blocks of **swag / bounce** type beats (chords,
 808s, melodies, bouncy drums), helps flip existing songs, and gets everything into FL Studio's
 Piano Roll with a drag.
 
 ![Bounce: generator view](docs/images/generator.png)
 
-> **Status: milestones 1–5 are implemented.** It's been tested with unit and engine tests,
-> pluginval (strictness 10) and screenshots on Linux. CI builds and validates on Windows and
-> macOS. **It hasn't been tested inside FL Studio yet**: see the checklist in
+> **Status: milestones 1–5 are implemented.** Every push is built on Windows x64, runs the unit
+> and engine tests, passes pluginval at strictness 10, and is published as a ready-to-install
+> zip. **It hasn't been tested inside FL Studio yet**: see the checklist in
 > [`docs/MILESTONES.md`](docs/MILESTONES.md#fl-studio-test-checklist).
+
+## Install (Windows 64-bit)
+
+1. Download **`Bounce-Windows-x64.zip`** from the repo's
+   [**bounce-latest** release](../../releases/tag/bounce-latest) (or from the latest
+   *Build Windows plugin* run under Actions → Artifacts).
+2. Unzip it, close FL Studio, right-click **`install.bat`** → *Run as administrator*.
+   This copies `Bounce.vst3` into `C:\Program Files\Common Files\VST3`.
+3. In FL Studio: *Options → Manage plugins → Find installed plugins*, then add **Bounce**
+   from the Generators.
+
+`Bounce.exe` in the zip is a standalone version for trying ideas without FL. The plugin uses a
+static runtime, so no Visual C++ redistributable is needed.
 
 ## What it does
 
@@ -41,38 +54,25 @@ ideas. The full state is saved with the FL project.
 
 ![Module tabs: 808, Drums, Arrange](docs/images/module-tabs.png)
 
-## Building
+## Building it yourself
 
-You need CMake 3.22+ and a C++20 compiler (Visual Studio 2022, Xcode 15+, or GCC 11+/Clang 14+).
-JUCE 8.0.9 and doctest are fetched automatically at configure time. No other dependencies.
+You need Visual Studio 2022 or newer (the *Desktop development with C++* workload) and CMake
+3.22+. JUCE 8.0.9 and doctest are fetched automatically at configure time.
 
-```sh
-# Windows
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+```bat
+cmake -S . -B build -A x64
 cmake --build build --config Release --parallel
-
-# macOS (universal)
-cmake -S . -B build -G Xcode "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
-cmake --build build --config Release --parallel
-
-# Linux
-sudo apt install libasound2-dev libx11-dev libxrandr-dev libxinerama-dev libxext-dev \
-                 libxcursor-dev libxcomposite-dev libfreetype-dev libfontconfig1-dev
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
-
-# Tests (any OS)
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-Artefacts are written to `build/plugin/Bounce_artefacts/Release/{VST3,AU,Standalone}`. On
-Windows, copy `Bounce.vst3` into `C:\Program Files\Common Files\VST3\`. On macOS, copy it into
-`~/Library/Audio/Plug-Ins/VST3/` (and `Bounce.component` into `.../Components/`).
+The plugin is written to `build\plugin\Bounce_artefacts\Release\VST3\Bounce.vst3`. To have
+each build copy itself into the VST3 folder, configure with `-DBOUNCE_COPY_PLUGIN=ON` from a
+terminal running as administrator.
 
-To build just the core (no JUCE, very fast), add `-DBOUNCE_BUILD_PLUGIN=OFF`. To build offline,
-pass `-DFETCHCONTENT_SOURCE_DIR_JUCE=... -DFETCHCONTENT_SOURCE_DIR_DOCTEST=...`.
-
-CI (`.github/workflows/build.yml`) builds on Windows, macOS and Linux, runs both test suites,
-and runs [pluginval](https://github.com/Tracktion/pluginval) at strictness level 10.
+CI (`.github/workflows/build.yml`) builds on Windows x64 and runs both test suites and
+[pluginval](https://github.com/Tracktion/pluginval) at strictness 10. It then publishes the zip
+to the `bounce-latest` pre-release. (The code itself is portable C++/JUCE; only Windows is built
+and supported.)
 
 ## Using it
 

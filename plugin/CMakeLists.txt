@@ -1,18 +1,21 @@
+# Set -DBOUNCE_COPY_PLUGIN=ON to copy Bounce.vst3 into C:\Program Files\Common Files\VST3 after
+# each build (needs a terminal running as administrator).
+option(BOUNCE_COPY_PLUGIN "Copy the VST3 into the system VST3 folder after building" OFF)
+
 juce_add_plugin(Bounce
     PRODUCT_NAME                "Bounce"
     COMPANY_NAME                "Bounce Audio"
     BUNDLE_ID                   "audio.bounce.bounce"
     PLUGIN_MANUFACTURER_CODE    Bnce
     PLUGIN_CODE                 Bnc1
-    FORMATS                     VST3 AU Standalone
+    FORMATS                     VST3 Standalone
     IS_SYNTH                    TRUE
     NEEDS_MIDI_INPUT            TRUE
     NEEDS_MIDI_OUTPUT           TRUE
     IS_MIDI_EFFECT              FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
-    COPY_PLUGIN_AFTER_BUILD     FALSE
+    COPY_PLUGIN_AFTER_BUILD     ${BOUNCE_COPY_PLUGIN}
     VST3_CATEGORIES             Instrument Generator
-    AU_MAIN_TYPE                kAudioUnitType_MusicDevice
     MICROPHONE_PERMISSION_ENABLED FALSE)
 
 juce_generate_juce_header(Bounce)

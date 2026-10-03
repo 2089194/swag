@@ -115,7 +115,7 @@ ArrangementGrid::~ArrangementGrid()
 juce::Rectangle<float> ArrangementGrid::cell (int row, int col) const
 {
     const auto b = getLocalBounds().toFloat();
-    const float rowH = b.getHeight() / static_cast<float> (maxRows + 1);
+    const float rowH = b.getHeight() / static_cast<float> (maxRows + 2); // header + rows + summary
     const float widths[] = { 0.24f, 0.12f, 0.08f, 0.08f, 0.08f, 0.08f, 0.08f, 0.12f, 0.12f };
     float x = b.getX();
     for (int c = 0; c < col; ++c)
@@ -170,7 +170,7 @@ void ArrangementGrid::paint (juce::Graphics& g)
     const double seconds = arr.totalBars() * 4.0 * 60.0 / session.tempo();
     g.drawText (juce::String (arr.totalBars()) + u8 (" bars  \xc2\xb7  ") + juce::String (static_cast<int> (seconds) / 60) + ":"
                     + juce::String (static_cast<int> (seconds) % 60).paddedLeft ('0', 2),
-                cell (maxRows - 1, 0).withRight (cell (maxRows - 1, numCols() - 1).getRight()).translated (0.0f, cell (0, 0).getHeight()),
+                cell (maxRows, 0).withRight (cell (maxRows, numCols() - 1).getRight()),
                 juce::Justification::centredRight);
 }
 

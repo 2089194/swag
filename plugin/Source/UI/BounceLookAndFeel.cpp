@@ -64,6 +64,9 @@ void drawPanel (juce::Graphics& g, juce::Rectangle<float> b, const juce::String&
 BounceLookAndFeel::BounceLookAndFeel()
 {
     using namespace juce;
+   #if JUCE_WINDOWS
+    setDefaultSansSerifTypefaceName ("Segoe UI"); // JUCE's Windows default (Verdana) is much wider
+   #endif
     setColour (ResizableWindow::backgroundColourId, Colours::background);
     setColour (Label::textColourId, Colours::text);
     setColour (Slider::rotarySliderFillColourId, Colours::chords);

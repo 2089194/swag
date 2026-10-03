@@ -7,7 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-option(BOUNCE_BUILD_PLUGIN "Build the JUCE plugin (VST3/AU/Standalone)" ON)
+# Static MSVC runtime: the VST3 then runs on any 64-bit Windows machine without the
+# Visual C++ redistributable installed.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+option(BOUNCE_BUILD_PLUGIN "Build the JUCE plugin (VST3/Standalone)" ON)
 option(BOUNCE_BUILD_TESTS  "Build the unit tests for the core library" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")

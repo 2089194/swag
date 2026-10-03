@@ -6,9 +6,10 @@ architecture is described in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 **Verification status (all milestones).** The core has 77 test cases (~150k assertions) and the
 engine has 13 test cases (~95k assertions). Both pass, and the core is also clean under
-AddressSanitizer and UBSan. pluginval passes at strictness 10 on Linux. I checked the UI
-through scripted screenshots of the standalone app under Xvfb, including a real Lab analysis
-of a WAV file and the hand-off to the generator. CI builds and validates on Windows and macOS.
+AddressSanitizer and UBSan. pluginval passes at strictness 10 on **Windows x64 in CI**, where the core and engine tests
+also pass. I checked the UI through scripted screenshots of the standalone app, including a
+real Lab analysis of a WAV file and the hand-off to the generator. The target is Windows 64-bit
+only.
 **I haven't run it inside FL Studio**: that checklist is at the end.
 
 ---
@@ -16,7 +17,7 @@ of a WAV file and the hand-off to the generator. CI builds and validates on Wind
 ## M1: skeleton, theory core, Chord Generator, drag-to-FL
 
 **Delivered**
-- A CMake + JUCE 8 project (VST3/AU/Standalone) with a pure-C++ `core`.
+- A CMake + JUCE 8 project (VST3 + Standalone, Windows x64) with a pure-C++ `core`.
 - Music theory: 10 scales/modes, 25 chord qualities (spelling, parsing, roman numerals),
   diatonic stacking, 5 voicing styles with voice leading.
 - The chord generator: a weighted Markov chain on functional harmony, with locks, reharmonise,
@@ -197,7 +198,7 @@ of a WAV file and the hand-off to the generator. CI builds and validates on Wind
 
 ## FL Studio test checklist
 
-Run these on Windows and macOS with FL Studio 2026:
+Run these on Windows with FL Studio 2026:
 
 1. **Load.** Add Bounce as a generator. The window fits the screen, and resizing from the corner
    keeps the aspect ratio and is remembered.

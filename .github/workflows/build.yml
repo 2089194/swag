@@ -1,63 +1,26 @@
-name: Build & test
+name: Build Windows plugin
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write # publish the "bounce-latest" pre-release with the ready-to-install zip
+
 jobs:
-  core-tests:
-    name: Core tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v5
-      - name: Configure
-        run: cmake -S . -B build -DBOUNCE_BUILD_PLUGIN=OFF -DCMAKE_BUILD_TYPE=Release
-      - name: Build
-        run: cmake --build build --config Release --parallel
-      - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
-
-  plugin:
-    name: Plugin (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Windows
-            os: windows-latest
-            pluginval: pluginval_Windows.zip
-            pluginval_bin: ./pluginval.exe
-          - name: macOS
-            os: macos-latest
-            pluginval: pluginval_macOS.zip
-            pluginval_bin: ./pluginval.app/Contents/MacOS/pluginval
-            cmake_extra: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0'
-          - name: Linux
-            os: ubuntu-latest
-            pluginval: pluginval_Linux.zip
-            pluginval_bin: xvfb-run -a ./pluginval
+  windows:
+    name: Windows x64 (build, test, pluginval, package)
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
 
-      - name: Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2-dev libx11-dev libxrandr-dev libxinerama-dev \
-            libxext-dev libxcursor-dev libxcomposite-dev libfreetype-dev libfontconfig1-dev xvfb ninja-build
-
       - name: Configure
-        shell: bash
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_extra }}
+        run: cmake -S . -B build -A x64
 
       - name: Build
         run: cmake --build build --config Release --parallel
@@ -68,16 +31,36 @@ jobs:
       - name: pluginval (strictness 10)
         shell: bash
         run: |
-          curl -sSL -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/latest/download/${{ matrix.pluginval }}"
+          curl -sSL -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip"
           unzip -q pluginval.zip
-          ${{ matrix.pluginval_bin }} --strictness-level 10 --validate-in-process \
+          ./pluginval.exe --strictness-level 10 --validate-in-process \
             --validate "build/plugin/Bounce_artefacts/Release/VST3/Bounce.vst3"
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $out = "Bounce-Windows-x64"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item -Recurse "build/plugin/Bounce_artefacts/Release/VST3/Bounce.vst3" "$out/"
+          Copy-Item "build/plugin/Bounce_artefacts/Release/Standalone/Bounce.exe" "$out/"
+          Copy-Item "packaging/windows/install.bat" "$out/"
+          Copy-Item "packaging/windows/README.txt" "$out/"
+          Compress-Archive -Path "$out/*" -DestinationPath "$out.zip" -Force
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Bounce-${{ matrix.name }}
-          path: |
-            build/plugin/Bounce_artefacts/Release/VST3
-            build/plugin/Bounce_artefacts/Release/AU
-            build/plugin/Bounce_artefacts/Release/Standalone
-          if-no-files-found: ignore
+          name: Bounce-Windows-x64
+          path: Bounce-Windows-x64
+
+      - name: Publish pre-release
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git tag -f bounce-latest
+          git push -f origin bounce-latest
+          gh release delete bounce-latest --yes --repo "$GITHUB_REPOSITORY" || true
+          gh release create bounce-latest Bounce-Windows-x64.zip --repo "$GITHUB_REPOSITORY" --prerelease \
+            --title "Bounce (latest Windows build)" \
+            --notes "Built from ${GITHUB_SHA::7} on ${GITHUB_REF_NAME}. Unzip, run install.bat as administrator, then rescan plugins in FL Studio."
