@@ -121,6 +121,7 @@ private:
         std::atomic<float>* internalSound = nullptr;
         std::atomic<float>* midiOut = nullptr;
         std::atomic<float>* keysWobble = nullptr;
+        std::atomic<float>* keysType = nullptr;
         std::atomic<float>* bassDecay = nullptr;
         std::atomic<float>* bassGlide = nullptr;
         std::atomic<float>* bassPunch = nullptr;

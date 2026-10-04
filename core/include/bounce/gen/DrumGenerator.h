@@ -86,6 +86,10 @@ struct DrumStyle
     std::vector<int> openHatSteps { 6, 14 };
     bool hats16ths = false; // base hat grid: 8ths (false) or 16ths
     bool halfTime = true;   // snare/clap on beat 3 (vs 2 & 4)
+    /** Optional clap/snare patterns over a 2-bar phrase (16th steps 0..31), with weights.
+        When set they replace the halfTime backbone: jerk / Jersey placements such as claps on
+        2 & 4 with syncopated extras. One pattern is picked per loop and repeated. */
+    std::vector<std::pair<std::vector<int>, double>> snarePatterns;
 
     static DrumStyle defaults();
     static DrumStyle fromJson (const util::Json& json, std::vector<std::string>* warnings = nullptr);

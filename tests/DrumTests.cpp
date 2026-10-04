@@ -162,3 +162,35 @@ TEST_CASE ("drums: style JSON")
     const auto back = DrumStyle::fromJson (style.toJson());
     CHECK (back.kickPatterns == style.kickPatterns);
 }
+
+TEST_CASE ("drums: jerk / Jersey clap patterns repeat every 2-bar phrase")
+{
+    const auto parsed = util::Json::parse (R"({
+        "halfTime": false,
+        "snarePatterns": [ { "steps": [4, 12, 20, 28, 30], "weight": 1 } ]
+    })");
+    REQUIRE (parsed.value);
+    std::vector<std::string> warnings;
+    const auto style = DrumStyle::fromJson (*parsed.value, &warnings);
+    CHECK (warnings.empty());
+    REQUIRE (style.snarePatterns.size() == 1);
+    CHECK (DrumStyle::fromJson (style.toJson()).snarePatterns == style.snarePatterns);
+
+    for (uint64_t seed = 0; seed < 20; ++seed)
+    {
+        DrumParams p;
+        p.seed = seed;
+        p.swing = p.humanise = p.bounce = 0.0;
+        p.percDensity = 0.0; // no ghost notes
+        const auto pat = generateDrums (p, style);
+        std::set<long> claps, kicks;
+        for (const auto& h : pat.lane (DrumLane::Snare))
+            claps.insert (std::lround (h.start * 4.0));
+        for (double k : pat.kickTimes())
+            kicks.insert (std::lround (k * 4.0));
+        const std::set<long> expected { 4, 12, 20, 28, 30, 36, 44, 52, 60, 62 };
+        CHECK (claps == expected);
+        for (long c : claps)
+            CHECK (kicks.count (c) == 0); // the clap owns its spot
+    }
+}

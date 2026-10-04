@@ -114,12 +114,47 @@ TEST_CASE ("keys: wobble keeps output finite")
     }
 }
 
+TEST_CASE ("keys: every sound plays; the pastel pad releases tightly for chops")
+{
+    for (int snd = 0; snd < static_cast<int> (KeysSynth::Sound::NumSounds); ++snd)
+    {
+        const auto sound = static_cast<KeysSynth::Sound> (snd);
+        KeysSynth keys;
+        keys.prepare (sr, 4096, 2);
+        juce::AudioBuffer<float> buf (2, 4096);
+        juce::MidiBuffer on, off, none;
+        for (int n : { 57, 60, 64, 67 })
+        {
+            on.addEvent (juce::MidiMessage::noteOn (1, n, 0.8f), 0);
+            off.addEvent (juce::MidiMessage::noteOff (1, n), 0);
+        }
+        buf.clear();
+        keys.render (buf, on, 0.0f, sound);
+        INFO ("sound ", snd);
+        CHECK (peakOf (buf) > 0.01f);
+
+        if (sound == KeysSynth::Sound::Pastel)
+        {
+            buf.clear();
+            keys.render (buf, off, 0.0f, sound);
+            for (int i = 0; i < 4; ++i) // ~340 ms after the note-off
+            {
+                buf.clear();
+                keys.render (buf, none, 0.0f, sound);
+            }
+            CHECK (peakOf (buf) < 0.001f);
+        }
+    }
+}
+
 TEST_CASE ("keys: generated progressions are heard as the chords they are")
 {
     // End to end: generate a loop, voice it, play it through the keys, then let the Lab's chord
     // detector listen. Each detected chord must be part of the chord that was played (Am9 may be
     // heard as Am7 or C), which is only true if the voicings and the voice read as real chords.
     constexpr double bpm = 120.0, secPerBeat = 60.0 / bpm;
+    for (auto sound : { KeysSynth::Sound::EPiano, KeysSynth::Sound::Pastel })
+    {
     int matched = 0, total = 0;
     for (uint64_t seed = 1; seed <= 6; ++seed)
     {
@@ -158,7 +193,7 @@ TEST_CASE ("keys: generated progressions are heard as the chords they are")
             view.clear();
             juce::MidiBuffer slice;
             slice.addEvents (all, pos, num, -pos);
-            keys.render (view, slice, 0.0f);
+            keys.render (view, slice, 0.0f, sound);
             for (int i = 0; i < num; ++i)
                 mono[static_cast<size_t> (pos + i)] = 0.5f * (view.getSample (0, i) + view.getSample (1, i));
         }
@@ -179,8 +214,10 @@ TEST_CASE ("keys: generated progressions are heard as the chords they are")
                     ++matched;
             }
     }
-    INFO (matched, " of ", total, " chords heard correctly");
+    INFO ("sound ", static_cast<int> (sound), ": ", matched, " of ", total, " chords heard correctly");
     CHECK (matched * 4 >= total * 3);
+    MESSAGE ("sound ", static_cast<int> (sound), ": ", matched, " of ", total, " chords heard correctly");
+    }
 }
 
 TEST_CASE ("drum kit: every lane is synthesised; sampler plays the internal encoding")

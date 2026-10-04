@@ -40,6 +40,7 @@ BounceProcessor::BounceProcessor()
     pp.internalSound = apvts.getRawParameterValue (params::internalSound);
     pp.midiOut = apvts.getRawParameterValue (params::midiOut);
     pp.keysWobble = apvts.getRawParameterValue (params::keysWobble);
+    pp.keysType = apvts.getRawParameterValue (params::keysType);
     pp.bassDecay = apvts.getRawParameterValue (params::bassDecay);
     pp.bassGlide = apvts.getRawParameterValue (params::bassGlide);
     pp.bassPunch = apvts.getRawParameterValue (params::bassPunch);
@@ -179,7 +180,9 @@ void BounceProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         keysMidi.clear();
         keysMidi.addEvents (partMidi[static_cast<size_t> (PlaybackSlot::Chords)], 0, numSamples, 0);
         keysMidi.addEvents (midiMessages, 0, numSamples, 0); // what the user plays reaches the keys too
-        keys.render (mixer.partBuffer (AudioPart::Chords), keysMidi, pp.keysWobble->load());
+        const auto keysSound = static_cast<KeysSynth::Sound> (juce::jlimit (0, static_cast<int> (KeysSynth::Sound::NumSounds) - 1,
+                                                                            juce::roundToInt (pp.keysType->load())));
+        keys.render (mixer.partBuffer (AudioPart::Chords), keysMidi, pp.keysWobble->load(), keysSound);
 
         Bass808::Settings bs;
         bs.decaySeconds = pp.bassDecay->load();

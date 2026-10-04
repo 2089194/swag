@@ -1,0 +1,65 @@
+{
+  // Jerk / "pastel bounce" swag: bright major-7th loops chopped by a 16th gate, a detuned
+  // unison pad with a tight release, Jersey/jerk claps (2 & 4 plus syncopated extras), busy
+  // 16th hats with 1/32 rolls and a root-locked 808 that pops and slides.
+  "id": "jerk_pastel_bounce",
+  "name": "Jerk / Pastel Bounce",
+  "description": "Bright pastel chords gated into 16th chops, detuned pad, Jersey/jerk claps, skittering hats.",
+  "tempo": { "bpm": 155, "halfTime": false },
+  "harmony": {
+    "key": "E",
+    "scale": "major",
+    "bars": 4,
+    "chordCount": 4,
+    "complexity": 0.7,
+    "mood": 0.35,
+    "borrowed": 0.25,
+    "majorProgressions": [
+      { "chords": ["IV", "V", "iii", "vi"], "weight": 3 },
+      { "chords": ["I", "V", "vi", "IV"], "weight": 2 },
+      { "chords": ["vi", "IV", "I", "V"], "weight": 2 },
+      { "chords": ["IV", "iii", "ii", "I"], "weight": 1.5 },
+      { "chords": ["I", "iii", "IV", "iv"], "weight": 1.2 },
+      { "chords": ["ii", "V", "I", "vi"], "weight": 1.2 },
+      { "chords": ["IV", "V"], "weight": 1 },
+      { "chords": ["vi", "IV"], "weight": 1 }
+    ],
+    "colours": { "maj7": 2.0, "add9": 1.6, "min7": 1.8, "min9": 1.4, "maj9": 1.2, "dom7": 0.4, "6_9": 0.05, "maj7s11": 0.0, "dom7sus4": 0.0 }
+  },
+  "voicing": { "style": "spread", "low": 60, "high": 86 },
+  "performance": {
+    "rhythm": "chop",
+    "chopSteps": [0, 1, 3, 4, 6, 8, 9, 11, 12, 14],
+    "swing": 0.05,
+    "strumMs": 4,
+    "velocity": 96,
+    "velocityRandom": 6,
+    "timingRandomMs": 3
+  },
+  "sound": { "keys": "pastel" },
+  "bass": { "mode": "Syncopated Bounce", "density": 0.6, "glide": 0.55, "lockToKick": true },
+  "melody": { "density": 0.65, "feel": "Straight", "pentatonic": 0.75 },
+  "drums": {
+    "swing": 0.06, "rollAmount": 0.75, "percDensity": 0.55, "openHatAmount": 0.55,
+    "halfTime": false,
+    "hats16ths": true,
+    "openHatSteps": [6, 10, 14],
+    "kickPatterns": [
+      { "steps": [0, 6, 10], "weight": 2 },
+      { "steps": [0, 3, 8, 11], "weight": 2 },
+      { "steps": [0, 7, 10, 14], "weight": 1.5 },
+      { "steps": [0, 3, 6, 10, 13], "weight": 1.5 },
+      { "steps": [0, 8, 10, 11, 14], "weight": 1 }
+    ],
+    "snarePatterns": [
+      { "steps": [4, 12, 20, 28, 30], "weight": 2 },
+      { "steps": [4, 11, 12, 20, 28], "weight": 1.5 },
+      { "steps": [4, 12, 15, 20, 28], "weight": 1.5 },
+      { "steps": [4, 12, 20, 26, 28, 30], "weight": 1.5 },
+      { "steps": [8, 14, 24, 29], "weight": 1 }
+    ],
+    "percPatterns": [
+      { "steps": [3, 11], "weight": 1.5 }, { "steps": [2, 7, 13], "weight": 1.2 }, { "steps": [5, 9, 14], "weight": 1 }
+    ]
+  }
+}

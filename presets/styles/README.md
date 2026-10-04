@@ -63,15 +63,19 @@ a preset only needs to state what makes it different.
   },
 
   "performance": {
-    "rhythm": "sustain",          // sustain, half, stabs, pulse8
+    "rhythm": "sustain",          // sustain, half, stabs, pulse8, chop
     "stabSteps": [0, 3, 6, 10, 12], // for "stabs": 16th-note steps in each bar
     "stabGate": 1.5,              // stab length in 16ths
+    "chopSteps": [0, 1, 3, 4, 6, 8, 9, 11, 12, 14], // for "chop": the 16th gate pattern
     "swing": 0.1,                 // 0..1
     "strumMs": 12,
     "velocity": 92,
     "velocityRandom": 8,
     "timingRandomMs": 6
   },
+
+  // Built-in keys sound: "epiano", "pastel" (7 detuned saws, tight release) or "bell".
+  "sound": { "keys": "epiano" },
 
   "bass": {
     "mode": "Syncopated Bounce",  // Root Follow, Syncopated Bounce, Octave Jumper, Glide Heavy, Sustain
@@ -91,7 +95,10 @@ a preset only needs to state what makes it different.
     // Kick patterns as 16th steps (0..15) per bar; plain arrays have weight 1.
     "kickPatterns": [ { "steps": [0, 10], "weight": 2 }, [0, 7, 10] ],
     "percPatterns": [ [3, 11], [6, 13] ],
-    "openHatSteps": [6, 14]
+    "openHatSteps": [6, 14],
+    // Optional clap patterns over a 2-bar phrase (16th steps 0..31). They replace halfTime,
+    // e.g. jerk claps on 2 & 4 plus a syncopated extra at the end of the phrase.
+    "snarePatterns": [ { "steps": [4, 12, 20, 28, 30], "weight": 2 }, [4, 11, 12, 20, 28] ]
   }
 }
 ```

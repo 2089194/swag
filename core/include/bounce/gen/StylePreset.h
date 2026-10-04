@@ -66,11 +66,16 @@ struct StylePreset
     theory::VoicingStyle voicing = theory::VoicingStyle::Spread;
     int registerLow = 55;
     int registerHigh = 82;
-    std::string chordRhythm = "sustain"; // "sustain" | "half" | "stabs" | "pulse8"
+    std::string chordRhythm = "sustain"; // "sustain" | "half" | "stabs" | "pulse8" | "chop"
 
     /** Stab pattern for "stabs": per-bar onsets in 16th steps (0..15) and a gate length in 16ths. */
     std::vector<int> stabSteps { 0, 3, 6, 10, 12 };
     double stabGate = 1.5;
+    /** Gate pattern for "chop" (16th steps). Empty = the built-in jerk gate. */
+    std::vector<int> chopSteps;
+
+    /** Built-in keys sound ("sound.keys"): "epiano", "pastel" (detuned unison pad) or "bell". */
+    std::string keysSound = "epiano";
 
     double swing = 0.0;          // 0..1 (16th swing)
     double strumMs = 12.0;

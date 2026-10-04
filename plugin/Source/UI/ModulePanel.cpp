@@ -236,7 +236,8 @@ ModulePanel::ModulePanel (BounceProcessor& p) : processor (p)
         auto& count = page->make<LabeledCombo> (st, params::chordCount, "Chords");
         auto& rhythm = page->make<LabeledCombo> (st, params::rhythm, "Rhythm");
         auto& voicing = page->make<LabeledCombo> (st, params::voicing, "Voicing");
-        auto& even = page->make<juce::TextButton> ("Even chord lengths");
+        auto& sound = page->make<LabeledCombo> (st, params::keysType, "Keys sound");
+        auto& even = page->make<juce::TextButton> ("Even lengths");
         even.onClick = [&session] { session.resetSlotLengths(); };
         even.setTooltip ("Chord lengths can be changed per chord (right-click a chord). This resets them.");
         complexity.setTooltip ("Triads ... 7ths ... 9ths/11ths");
@@ -247,7 +248,7 @@ ModulePanel::ModulePanel (BounceProcessor& p) : processor (p)
         page->row ({ &swing, &octave, &wobble }, 88, 4);
         page->row ({ &bars, &count }, 44);
         page->row ({ &rhythm, &voicing }, 44);
-        page->row ({ &even }, 26);
+        page->row ({ &sound, &even }, 44);
         pages.push_back (std::move (page));
     }
 

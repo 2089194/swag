@@ -29,7 +29,7 @@ const std::vector<int>& pickPattern (const Patterns& patterns, util::Random& rng
     return idx >= 0 ? patterns[static_cast<size_t> (idx)].first : fallback;
 }
 
-Patterns patternsFromJson (const util::Json& arr, std::vector<std::string>* warnings, const char* what)
+Patterns patternsFromJson (const util::Json& arr, std::vector<std::string>* warnings, const char* what, int maxStep = 15)
 {
     Patterns out;
     for (const auto& item : arr.asArray())
@@ -42,10 +42,10 @@ Patterns patternsFromJson (const util::Json& arr, std::vector<std::string>* warn
         for (const auto& s : stepsJson.asArray())
         {
             const int step = s.asInt (-1);
-            if (step < 0 || step > 15)
+            if (step < 0 || step > maxStep)
             {
                 if (warnings)
-                    warnings->push_back (std::string (what) + ": step out of range 0..15");
+                    warnings->push_back (std::string (what) + ": step out of range 0.." + std::to_string (maxStep));
                 continue;
             }
             steps.push_back (step);
@@ -145,6 +145,8 @@ DrumStyle DrumStyle::fromJson (const util::Json& j, std::vector<std::string>* wa
             if (const int st = v.asInt (-1); st >= 0 && st <= 15)
                 s.openHatSteps.push_back (st);
     }
+    if (j.has ("snarePatterns"))
+        s.snarePatterns = patternsFromJson (j["snarePatterns"], warnings, "snarePatterns", 31);
     s.hats16ths = j["hats16ths"].asBool (s.hats16ths);
     s.halfTime = j["halfTime"].asBool (s.halfTime);
     return s;
@@ -155,6 +157,8 @@ util::Json DrumStyle::toJson() const
     util::Json j;
     j.set ("kickPatterns", patternsToJson (kickPatterns));
     j.set ("percPatterns", patternsToJson (percPatterns));
+    if (! snarePatterns.empty())
+        j.set ("snarePatterns", patternsToJson (snarePatterns));
     util::Json oh;
     oh.asArray();
     for (int s : openHatSteps)
@@ -178,6 +182,27 @@ DrumPattern generateDrums (const DrumParams& p, const DrumStyle& style)
     auto add = [&pat] (DrumLane lane, double start, double length, int vel, int pitch = 0, bool roll = false)
     {
         pat.hits.push_back ({ lane, start, length, std::clamp (vel, 1, 127), pitch, roll });
+    };
+
+    // --- Snare / clap placements: a 2-bar pattern from the style (jerk / Jersey), or the
+    // half-time / backbeat backbone. Picked once so the groove repeats.
+    std::vector<int> snarePhrase; // 16th steps over 2 bars
+    if (! style.snarePatterns.empty())
+    {
+        util::Random sr (util::deriveSeed (p.seed, 3));
+        snarePhrase = pickPattern (style.snarePatterns, sr);
+    }
+    else if (style.halfTime)
+        snarePhrase = { snareStep, 16 + snareStep };
+    else
+        snarePhrase = { 4, 12, 20, 28 };
+    auto snareStepsIn = [&snarePhrase] (int bar)
+    {
+        std::set<int> out;
+        for (int st : snarePhrase)
+            if ((st >= 16) == (bar % 2 == 1))
+                out.insert (st % 16);
+        return out;
     };
 
     // --- Kick: an A pattern, a B variation on every second bar, pickups at phrase ends.
@@ -207,8 +232,8 @@ DrumPattern generateDrums (const DrumParams& p, const DrumStyle& style)
 
         if (bar == pat.bars - 1 && pat.bars > 1 && rng.chance (0.5))
             steps.insert (rng.chance (0.5) ? 14 : 15); // pickup into the loop
-        if (style.halfTime)
-            steps.erase (snareStep);
+        for (int st : snareStepsIn (bar))
+            steps.erase (st); // the clap owns its spot
         steps.insert (0);
 
         for (int s : steps)
@@ -219,12 +244,11 @@ DrumPattern generateDrums (const DrumParams& p, const DrumStyle& style)
     for (int bar = 0; bar < pat.bars; ++bar)
     {
         util::Random rng (util::deriveSeed (p.seed, laneStream (DrumLane::Snare, bar)));
-        if (style.halfTime)
-            add (DrumLane::Snare, bar * 4 + snareStep * 0.25, 0.5, 112);
-        else
+        for (int st : snareStepsIn (bar))
         {
-            add (DrumLane::Snare, bar * 4 + 1.0, 0.5, 110);
-            add (DrumLane::Snare, bar * 4 + 3.0, 0.5, 112);
+            // Backbeat hits (on a beat) full, syncopated extras a touch softer.
+            const bool onBeat = st % 4 == 0;
+            add (DrumLane::Snare, bar * 4 + st * 0.25, onBeat ? 0.5 : 0.25, onBeat ? 112 : 98);
         }
         if (rng.chance (std::clamp (p.percDensity, 0.0, 1.0) * 0.3))
             add (DrumLane::Snare, bar * 4 + (rng.chance (0.5) ? 15 : 7) * 0.25, 0.2, 52 + rng.nextInt (12));

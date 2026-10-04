@@ -103,6 +103,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     layout.add (percent (swing, "Swing", 0.1f));
     layout.add (std::make_unique<AudioParameterInt> (ParameterID { octave, 1 }, "Octave", -2, 2, 0));
     layout.add (percent (keysWobble, "Tape Wobble", 0.0f));
+    layout.add (choice (keysType, "Keys Sound", { "E-Piano", "Pastel Pad", "Bell" }, 0));
 
     // --- I/O.
     layout.add (toggle (internalSound, "Internal Sound", true));
@@ -194,7 +195,7 @@ bool isChordHarmonyParam (const juce::String& id)
 bool affectsRendering (const juce::String& id)
 {
     // Everything that shapes generated notes but not the audio-only mixer / voice settings.
-    static const juce::StringArray audioOnly { internalSound, midiOut, preview, syncHost, tempoView, keysWobble, bassDecay, bassPunch, leadType };
+    static const juce::StringArray audioOnly { internalSound, midiOut, preview, syncHost, tempoView, keysWobble, keysType, bassDecay, bassPunch, leadType };
     if (audioOnly.contains (id))
         return false;
     for (int p = 0; p < numAudioParts; ++p)

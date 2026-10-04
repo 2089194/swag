@@ -379,6 +379,21 @@ StylePreset StylePreset::fromJson (const util::Json& j, std::vector<std::string>
             p.stabSteps.push_back (s.asInt());
     }
     p.stabGate = perf["stabGate"].asNumber (p.stabGate);
+    if (perf.has ("chopSteps"))
+    {
+        p.chopSteps.clear();
+        for (const auto& s : perf["chopSteps"].asArray())
+            if (const int st = s.asInt (-1); st >= 0 && st <= 15)
+                p.chopSteps.push_back (st);
+    }
+    if (const auto& snd = j["sound"]; snd.has ("keys"))
+    {
+        const auto k = snd["keys"].asString();
+        if (k == "epiano" || k == "pastel" || k == "bell")
+            p.keysSound = k;
+        else if (warnings)
+            warnings->push_back ("bad keys sound '" + k + "'");
+    }
     p.swing = perf["swing"].asNumber (p.swing);
     p.strumMs = perf["strumMs"].asNumber (p.strumMs);
     p.velocity = perf["velocity"].asNumber (p.velocity);
@@ -488,12 +503,24 @@ util::Json StylePreset::toJson() const
         steps.push (s);
     perf.set ("stabSteps", std::move (steps));
     perf.set ("stabGate", stabGate);
+    if (! chopSteps.empty())
+    {
+        Json chop;
+        chop.asArray();
+        for (int s : chopSteps)
+            chop.push (s);
+        perf.set ("chopSteps", std::move (chop));
+    }
     perf.set ("swing", swing);
     perf.set ("strumMs", strumMs);
     perf.set ("velocity", velocity);
     perf.set ("velocityRandom", velocityRandom);
     perf.set ("timingRandomMs", timingRandomMs);
     j.set ("performance", std::move (perf));
+
+    Json sound;
+    sound.set ("keys", keysSound);
+    j.set ("sound", std::move (sound));
 
     Json bass;
     bass.set ("mode", std::string (bassModeName (bassMode)));

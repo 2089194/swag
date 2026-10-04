@@ -19,6 +19,7 @@ enum class ChordRhythm
     Half,    // re-struck every half bar
     Stabs,   // syncopated gated stabs (flip / chopped-sample feel)
     Pulse8,  // straight 8th pulses
+    Chop,    // tight 16th gate pattern: the stuttered, sliced chords of jerk / swag bounce
     NumRhythms
 };
 
@@ -35,6 +36,7 @@ struct ChordPerformance
     ChordRhythm rhythm = ChordRhythm::Sustain;
     std::vector<int> stabSteps { 0, 3, 6, 10, 12 }; // 16th steps within a bar
     double stabGate = 1.5;                          // in 16ths
+    std::vector<int> chopSteps { 0, 1, 3, 4, 6, 8, 9, 11, 12, 14 }; // gate pattern for Chop
 
     double bpm = 140.0;     // converts the ms-based humanise values into beats
     double humanise = 0.5;  // 0..1, scales strum/velocity/timing randomness

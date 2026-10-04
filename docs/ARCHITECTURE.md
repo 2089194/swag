@@ -110,7 +110,8 @@ Amaj9 comes out as A C# G# B rather than the cluster G# A B C#.
 - **Counter-melody.** It places notes on an 8th grid where the melody rests. Candidates are
   weighted by step size, chord tones and contrary motion; 2nds, 7ths and tritones against
   the sounding melody note are rejected. Each note is cut at the next melody onset.
-- **Drums.** It works per bar and per lane: kick A/B patterns, a half-time snare, hats with
+- **Drums.** It works per bar and per lane: kick A/B patterns, a clap phrase (style
+  `snarePatterns` over 2 bars, else half-time or 2 & 4; kicks yield to claps), hats with
   rolls and stutters, open hats, percs and rims. Swing, then bounce, then humanise are
   applied, with the loop downbeat fixed at 0.
 
@@ -162,6 +163,6 @@ Animation runs from a `VBlankAttachment` that reads atomics.
 
 | Suite | Covers |
 |---|---|
-| `bounce_tests` (84 cases) | Theory, voicing, the chord generator (in key, locks, determinism, borrowed sources, custom lengths), renderer, 808 (roots, register, lock to kick, glides), melody (in key, chord tones on strong beats, monophonic, density, repetition, bar locks), counter-melody (no clashes, fills gaps), drums (backbone, roll rates/curves/pitch, maps, style JSON), ideas/edits/arrangement, analysis of synthesised audio (BPM within 0.2%, key, chords, downbeat, detected → progression), speed helper, MIDI files with CCs and markers, JSON, presets, RNG, triple buffer |
-| `bounce_engine_tests` (14 cases) | Pattern player (bar-aligned wrap, pairing, chase, swap, jumps, preview), 808 glide/release, lead types, keys wobble, generated chords played through the keys and recognised by the Lab's chord detector, synthesised kit, sampler hot-swap, mixer mute/tails |
+| `bounce_tests` (85 cases) | Theory, voicing, the chord generator (in key, locks, determinism, borrowed sources, custom lengths), renderer, 808 (roots, register, lock to kick, glides), melody (in key, chord tones on strong beats, monophonic, density, repetition, bar locks), counter-melody (no clashes, fills gaps), drums (backbone, roll rates/curves/pitch, maps, style JSON), ideas/edits/arrangement, analysis of synthesised audio (BPM within 0.2%, key, chords, downbeat, detected → progression), speed helper, MIDI files with CCs and markers, JSON, presets, RNG, triple buffer |
+| `bounce_engine_tests` (15 cases) | Pattern player (bar-aligned wrap, pairing, chase, swap, jumps, preview), 808 glide/release, lead types, keys wobble, generated chords played through the e-piano and pastel pad and recognised by the Lab's chord detector, synthesised kit, sampler hot-swap, mixer mute/tails |
 | pluginval (CI) | Strictness 10 on Windows x64 |

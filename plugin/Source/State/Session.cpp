@@ -675,6 +675,7 @@ void Session::setStyle (int index)
     setParam (params::voicing, static_cast<float> (s.voicing));
     setParam (params::rhythm, static_cast<float> (gen::chordRhythmFromId (s.chordRhythm).value_or (gen::ChordRhythm::Sustain)));
     setParam (params::swing, static_cast<float> (s.swing));
+    setParam (params::keysType, s.keysSound == "pastel" ? 1.0f : s.keysSound == "bell" ? 2.0f : 0.0f);
     setParam (params::bassMode, static_cast<float> (s.bassMode));
     setParam (params::bassDensity, static_cast<float> (s.bassDensity));
     setParam (params::bassGlide, static_cast<float> (s.bassGlide));

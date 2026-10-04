@@ -25,6 +25,7 @@ inline constexpr const char* humanise   = "humanise";
 inline constexpr const char* swing      = "swing";
 inline constexpr const char* octave     = "octave";
 inline constexpr const char* keysWobble = "keysWobble";
+inline constexpr const char* keysType   = "keysType";   // E-Piano / Pastel Pad / Bell
 
 // Global I/O.
 inline constexpr const char* internalSound = "internalSound";

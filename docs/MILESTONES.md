@@ -4,8 +4,8 @@ Each section lists what was delivered, the design decisions behind it, and its k
 limitations. Build and run instructions are in the [README](../README.md#building). The
 architecture is described in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-**Verification status (all milestones).** The core has 84 test cases (~150k assertions) and the
-engine has 14 test cases (~95k assertions). Both pass, and the core is also clean under
+**Verification status (all milestones).** The core has 85 test cases (~155k assertions) and the
+engine has 15 test cases (~95k assertions). Both pass, and the core is also clean under
 AddressSanitizer and UBSan. pluginval passes at strictness 10 on **Windows x64 in CI**, where the core and engine tests
 also pass. I checked the UI through scripted screenshots of the standalone app, including a
 real Lab analysis of a WAV file and the hand-off to the generator. The target is Windows 64-bit
@@ -227,6 +227,32 @@ range and stepwise motion, and cluster-free voicings.
 **Honest limits.** I can't listen to the producers' tracks. The rules encode widely known
 traits of the style (loop shapes, extended-chord colours, root-locked 808s with octave pops and
 slides, short pentatonic motifs), not analysis of their actual songs.
+
+---
+
+## Jerk / pastel bounce pass (from the style research you shared)
+
+These traits from the guides and breakdowns you found are now built in:
+- **Gated 16th "chop" chord rhythm.** Short, even gates with a tight release, for the
+  stuttered, sliced chords of jerk / swag bounce.
+- **Pastel pad keys sound.** 7 detuned saws spread in stereo, with a key-tracked filter and a
+  0.12 s release so chops stay clean. There's also a **Bell** (rompler/Triton-style FM). Pick
+  the sound under *Keys sound* on the Chords tab; styles can set it with `sound.keys`.
+- **Jersey/jerk clap patterns.** Styles can define 2-bar clap patterns (claps on 2 & 4 plus
+  syncopated extras). Kicks yield to the claps.
+- **New style: *Jerk / Pastel Bounce*** (E major, 155 BPM). It uses bright IV–V–iii–vi /
+  I–V–vi–IV loops with maj7/add9/m7 colours, the chop rhythm, the pastel pad, jerk claps,
+  16th hats with heavy rolls and skittering open hats, and a root-locked 808 with pops and
+  slides.
+
+**Verification.** Generated loops played through the pastel pad are recognised by the Lab's
+chord detector 39/48 times (the e-piano scores 40/48). The pad is silent within 0.34 s of
+note-off, and a test confirms the clap patterns repeat exactly and kicks never land on a clap.
+
+**Not done (yet).** Vocal chops: no copyrighted audio is bundled, and the internal voices
+don't synthesise vocals. Load your own vocal one-shots into a drum lane (right-click the lane
+name), or run Bounce's MIDI into a vocal-chop sampler. Gated reverb and a transient
+shaper/limiter on the master are also not included; FL's own Fruity Reeverb/Limiter cover them.
 
 ---
 

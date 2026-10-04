@@ -22,6 +22,7 @@ constexpr std::array<RhythmInfo, static_cast<size_t> (ChordRhythm::NumRhythms)> 
     { "Half",     "half" },
     { "Stabs",    "stabs" },
     { "8th Pulse","pulse8" },
+    { "Gated Chop","chop" },
 } };
 
 /** Onsets (start, length) for one slot. */
@@ -50,6 +51,25 @@ std::vector<std::pair<double, double>> slotHits (double start, double length, in
             for (double t = start; t < end - 1e-9; t += 0.5)
                 hits.emplace_back (t, std::min (0.4, end - t));
             break;
+
+        case ChordRhythm::Chop:
+        {
+            // Short, even gates (a little under a 16th) so the chord stutters like it's run
+            // through a gate or sidechain; the tight release keeps the changes clean.
+            const int firstBar = static_cast<int> (std::floor (start / beatsPerBar));
+            const int lastBar = static_cast<int> (std::ceil (end / beatsPerBar));
+            for (int bar = firstBar; bar < lastBar; ++bar)
+                for (int step : perf.chopSteps)
+                {
+                    const double t = bar * beatsPerBar + std::clamp (step, 0, beatsPerBar * 4 - 1) * 0.25;
+                    if (t >= start - 1e-9 && t < end - 1e-9)
+                        hits.emplace_back (t, std::min (0.18, end - t));
+                }
+            std::sort (hits.begin(), hits.end());
+            if (hits.empty() || hits.front().first > start + 1e-9)
+                hits.insert (hits.begin(), { start, std::min (0.18, length) });
+            break;
+        }
 
         case ChordRhythm::Stabs:
         {
@@ -105,6 +125,8 @@ ChordPerformance ChordPerformance::fromPreset (const StylePreset& p)
     perf.rhythm = chordRhythmFromId (p.chordRhythm).value_or (ChordRhythm::Sustain);
     perf.stabSteps = p.stabSteps;
     perf.stabGate = p.stabGate;
+    if (! p.chopSteps.empty())
+        perf.chopSteps = p.chopSteps;
     perf.bpm = p.bpm;
     perf.strumMs = p.strumMs;
     perf.velocity = p.velocity;

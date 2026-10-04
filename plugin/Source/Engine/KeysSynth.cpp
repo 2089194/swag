@@ -5,6 +5,32 @@
 namespace bounce
 {
 
+namespace
+{
+inline double polyBlep (double t, double dt)
+{
+    if (t < dt)
+    {
+        t /= dt;
+        return t + t - t * t - 1.0;
+    }
+    if (t > 1.0 - dt)
+    {
+        t = (t - 1.0) / dt;
+        return t * t + t + t + 1.0;
+    }
+    return 0.0;
+}
+
+inline double saw (double phase, double inc)
+{
+    return 2.0 * phase - 1.0 - polyBlep (phase, inc);
+}
+
+/** Unison detune (cents) and stereo side (-1 left .. +1 right) of the pastel pad's 7 saws. */
+constexpr double unisonCents[KeysSynth::maxOscs] { 0.0, -9.0, 9.0, -17.0, 17.0, -24.0, 24.0 };
+constexpr double unisonSide[KeysSynth::maxOscs]  { 0.0, -0.6, 0.6, 0.9, -0.9, -0.3, 0.3 };
+} // namespace
 
 void KeysSynth::prepare (double newSampleRate, int maxBlockSize, int numChannels)
 {
@@ -72,19 +98,55 @@ void KeysSynth::noteOn (int channel, int note, float velocity)
     v.channel = channel;
     v.age = ++ageCounter;
     v.velocity = velocity;
-    v.inc[0] = freq / sampleRate;           // carrier
-    v.inc[1] = freq * 1.0008 / sampleRate;  // body modulator (ratio 1, a hair detuned for movement)
-    v.inc[2] = freq * 14.0 / sampleRate;    // tine modulator: the bell-like "tink" of the attack
-    v.phase[0] = v.phase[1] = v.phase[2] = 0.0;
+    v.sound = sound;
+    for (auto& ph : v.phase)
+        ph = 0.0;
+    v.lpR1 = v.lpR2 = 0.0f;
 
-    // FM index: harder = brighter bark; low notes get less so spread voicings stay clean.
     const double lowness = juce::jlimit (0.0, 1.0, (60.0 - note) / 24.0);
-    v.index = static_cast<float> ((0.9 + 1.6 * velocity) * (1.0 - 0.55 * lowness));
-    v.tine = static_cast<float> ((0.25 + 0.5 * velocity) * (1.0 - lowness));
-    v.indexDecay = static_cast<float> (std::exp (-1.0 / (0.35 * sampleRate)));
-    v.tineDecay = static_cast<float> (std::exp (-1.0 / (0.03 * sampleRate)));
+    double cutoff = 0.0;
+    switch (sound)
+    {
+        case Sound::Pastel:
+            // 7 detuned saws, free-running phases so the unison shimmers from the first note.
+            for (int o = 0; o < maxOscs; ++o)
+            {
+                v.inc[o] = freq * std::pow (2.0, unisonCents[o] / 1200.0) / sampleRate;
+                v.phase[o] = std::fmod (0.137 * (o + 1) * (note + 3), 1.0);
+            }
+            v.env.setParameters ({ 0.008f, 0.35f, 0.82f, 0.12f }); // tight release: chops stay clean
+            // Key-tracked filter: low notes stay round so the unison doesn't muddy the chord.
+            cutoff = juce::jlimit (300.0, 8000.0, freq * (2.5 + 2.0 * velocity));
+            break;
 
-    const double cutoff = juce::jlimit (1500.0, 12000.0, 3000.0 + 6000.0 * velocity);
+        case Sound::Bell:
+            // Triton-style FM bell: inharmonic ratio-3.5 modulator that rings out, no sustain.
+            v.inc[0] = freq / sampleRate;
+            v.inc[1] = freq * 3.5 / sampleRate;
+            v.inc[2] = freq * 7.0 / sampleRate;
+            v.index = static_cast<float> ((1.2 + 1.8 * velocity) * (1.0 - 0.5 * lowness));
+            v.tine = static_cast<float> (0.6 * velocity);
+            v.indexDecay = static_cast<float> (std::exp (-1.0 / (0.6 * sampleRate)));
+            v.tineDecay = static_cast<float> (std::exp (-1.0 / (0.05 * sampleRate)));
+            v.env.setParameters ({ 0.001f, 1.6f, 0.0f, 0.5f });
+            cutoff = 12000.0;
+            break;
+
+        case Sound::EPiano:
+        case Sound::NumSounds:
+            v.inc[0] = freq / sampleRate;           // carrier
+            v.inc[1] = freq * 1.0008 / sampleRate;  // body modulator (ratio 1, a hair detuned for movement)
+            v.inc[2] = freq * 14.0 / sampleRate;    // tine modulator: the bell-like "tink" of the attack
+            // FM index: harder = brighter bark; low notes get less so spread voicings stay clean.
+            v.index = static_cast<float> ((0.9 + 1.6 * velocity) * (1.0 - 0.55 * lowness));
+            v.tine = static_cast<float> ((0.25 + 0.5 * velocity) * (1.0 - lowness));
+            v.indexDecay = static_cast<float> (std::exp (-1.0 / (0.35 * sampleRate)));
+            v.tineDecay = static_cast<float> (std::exp (-1.0 / (0.03 * sampleRate)));
+            v.env.setParameters ({ 0.002f, 2.6f, 0.32f, 0.38f });
+            cutoff = juce::jlimit (1500.0, 12000.0, 3000.0 + 6000.0 * velocity);
+            break;
+    }
+
     v.cutoffCoeff = static_cast<float> (1.0 - std::exp (-juce::MathConstants<double>::twoPi * cutoff / sampleRate));
     v.pan = juce::jlimit (0.2f, 0.8f, 0.5f + static_cast<float> (note - 64) * 0.008f);
     v.env.noteOn();
@@ -121,33 +183,51 @@ void KeysSynth::renderVoices (int start, int num, float wobble)
         if (! v.active())
             continue;
 
-        const float amp = 0.16f * (0.35f + 0.65f * v.velocity);
+        const float amp = (v.sound == Sound::Pastel ? 0.07f : 0.16f) * (0.35f + 0.65f * v.velocity);
         const float gl = std::sqrt (1.0f - v.pan), gr = std::sqrt (v.pan);
         // Lo-fi: wobble also darkens the tone.
         const float coeff = v.cutoffCoeff * (1.0f - 0.55f * wobble);
 
+        constexpr double twoPi = juce::MathConstants<double>::twoPi;
         for (int i = start; i < start + num; ++i)
         {
-            constexpr double twoPi = juce::MathConstants<double>::twoPi;
-            const double modulator = (0.35 + v.index) * std::sin (twoPi * v.phase[1])
-                                   + v.tine * std::sin (twoPi * v.phase[2]);
-            const double s = std::sin (twoPi * v.phase[0] + modulator);
-            v.index *= v.indexDecay;
-            v.tine *= v.tineDecay;
-
-            for (int o = 0; o < 3; ++o)
+            double sl = 0.0, sr = 0.0;
+            if (v.sound == Sound::Pastel)
             {
-                v.phase[o] += v.inc[o] * mod[i];
-                if (v.phase[o] >= 1.0)
-                    v.phase[o] -= 1.0;
+                for (int o = 0; o < maxOscs; ++o)
+                {
+                    const double x = saw (v.phase[o], v.inc[o]);
+                    sl += x * (1.0 - unisonSide[o]) * 0.5;
+                    sr += x * (1.0 + unisonSide[o]) * 0.5;
+                    v.phase[o] += v.inc[o] * mod[i];
+                    if (v.phase[o] >= 1.0)
+                        v.phase[o] -= 1.0;
+                }
+            }
+            else
+            {
+                // E-piano keeps a little body brightness after the attack; the bell rings down to a sine.
+                const double body = v.sound == Sound::Bell ? v.index : 0.35 + v.index;
+                const double modulator = body * std::sin (twoPi * v.phase[1]) + v.tine * std::sin (twoPi * v.phase[2]);
+                sl = sr = std::sin (twoPi * v.phase[0] + modulator);
+                v.index *= v.indexDecay;
+                v.tine *= v.tineDecay;
+                for (int o = 0; o < 3; ++o)
+                {
+                    v.phase[o] += v.inc[o] * mod[i];
+                    if (v.phase[o] >= 1.0)
+                        v.phase[o] -= 1.0;
+                }
             }
 
-            v.lp1 += coeff * (static_cast<float> (s) - v.lp1);
+            v.lp1 += coeff * (static_cast<float> (sl) - v.lp1);
             v.lp2 += coeff * (v.lp1 - v.lp2);
+            v.lpR1 += coeff * (static_cast<float> (sr) - v.lpR1);
+            v.lpR2 += coeff * (v.lpR1 - v.lpR2);
 
-            const float out = v.lp2 * amp * v.env.getNextSample();
-            left[i] += out * gl;
-            right[i] += out * gr;
+            const float e = amp * v.env.getNextSample();
+            left[i] += v.lp2 * e * gl;
+            right[i] += v.lpR2 * e * gr;
         }
 
         if (! v.active())
@@ -155,8 +235,9 @@ void KeysSynth::renderVoices (int start, int num, float wobble)
     }
 }
 
-void KeysSynth::render (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi, float wobble)
+void KeysSynth::render (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi, float wobble, Sound newSound)
 {
+    sound = newSound; // applies to notes started from now on
     const int numSamples = buffer.getNumSamples();
     if (numSamples > scratch.getNumSamples())
         return; // host exceeded the promised block size; skip rather than allocate
