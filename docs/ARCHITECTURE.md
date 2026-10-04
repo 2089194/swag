@@ -65,8 +65,15 @@ you get.
 
 ## Harmony engine
 
-`ChordGenerator` is a weighted Markov chain over roman-numeral **functions**, with separate tables
-for major- and minor-tonic modes. Each candidate's weight is built like this:
+`ChordGenerator` first tries the style's **progression templates** (`harmony.majorProgressions` /
+`minorProgressions`: loop shapes like `i bVI bIII bVII` with weights). A template is fitted
+cyclically to the chord count and rejected if it breaks a lock, needs borrowed chords while
+Borrowed is 0, or repeats a chord back to back. Templates are weighted by exact-length fit, mood
+and the borrowed setting, and a function that recurs in a loop reuses the same chord.
+
+When no template fits (or for reharmonising), a weighted Markov chain over roman-numeral
+**functions** takes over, with separate tables for major- and minor-tonic modes. Each
+candidate's weight is built like this:
 
 ```
 weight(fn) = transition(prev → fn)             // or the start weight for slot 0
@@ -79,17 +86,27 @@ weight(fn) = transition(prev → fn)             // or the start weight for slot
 
 A weight of 0 in the preset forbids a move outright. The chord quality is chosen from colours
 that stay inside the scale (diatonic) or the parallel scale (borrowed), weighted by the preset
-and by a bell curve around the complexity setting.
+(squared, so favourite colours clearly win) and by a bell curve around the complexity setting.
+
+Voicing tries every octave placement of the chord tones in the register, not just close stacks.
+It scores voice-leading distance, top-note motion, distance from the register centre and a
+**clash penalty**: minor 2nds and minor 9ths between voices, and close intervals low down. So
+Amaj9 comes out as A C# G# B rather than the cluster G# A B C#.
 
 ## Generators in brief
 
-- **808.** The onsets in each chord come from the kick (lock to kick) or from mode-specific
-  templates, plus density extras. Pitches are the root, 5th or octave, depending on the mode.
+- **808.** One curated bar rhythm per loop (by mode, leaning busier with density) is repeated
+  every bar; with lock to kick, the kick's hits are used instead. Every note is the chord's bass
+  note. The octave of each root is chosen over the whole loop (all 2^n options) to minimise
+  motion, seam included. Octave pops sit at fixed rhythm positions, and glides go into chosen
+  chord changes (the turnaround first) and, with high glide, into the pops.
   Glides overlap the next note by a 32nd, and the clip starts with CC65/CC5 portamento hints.
-- **Melody.** It picks a motif rhythm (weighted towards strong steps) and a motif contour (in
-  scale steps). Each bar reuses the rhythm (repetition) and the contour (catchiness), with
-  small variations. Call & response trims the answer bar and resolves it downward. Strong
-  beats snap to chord tones. A final pass keeps the line monophonic after swing.
+- **Melody.** It works from pentatonic notes (unless the pentatonic control is low), a one-bar
+  rhythm cell from a curated list per density and feel, and a motif contour in pool steps that
+  never wanders more than three steps. Every bar re-anchors the motif on a chord tone near the
+  home register, so the phrase follows the harmony. Phrases are A B A B' (call & response, B
+  mirrors the contour) or A A A A'. Beats land on chord tones, and phrase ends resolve to the
+  chord root, or the tonic at the loop end.
 - **Counter-melody.** It places notes on an 8th grid where the melody rests. Candidates are
   weighted by step size, chord tones and contrary motion; 2nds, 7ths and tritones against
   the sounding melody note are rejected. Each note is cut at the next melody onset.
@@ -136,14 +153,15 @@ lengths.
 ## UI
 
 Everything is laid out at a fixed 1360×860 design size and scaled with an `AffineTransform`,
-and every graphic is a vector path, so it stays crisp from 75% to 200%. On first open,
-`defaultWidthForScreen()` picks the largest size that fits the main display, up to 100%.
+and every graphic is a vector path, so it stays crisp from 60% to 200%. The window opens at
+the project's saved size, else the last size used anywhere (`%APPDATA%\Bounce\Bounce.settings`),
+else `defaultWidthForScreen()`: about 62% of the screen height, capped at 80%.
 Animation runs from a `VBlankAttachment` that reads atomics.
 
 ## Tests
 
 | Suite | Covers |
 |---|---|
-| `bounce_tests` (77 cases) | Theory, voicing, the chord generator (in key, locks, determinism, borrowed sources, custom lengths), renderer, 808 (roots, register, lock to kick, glides), melody (in key, chord tones on strong beats, monophonic, density, repetition, bar locks), counter-melody (no clashes, fills gaps), drums (backbone, roll rates/curves/pitch, maps, style JSON), ideas/edits/arrangement, analysis of synthesised audio (BPM within 0.2%, key, chords, downbeat, detected → progression), speed helper, MIDI files with CCs and markers, JSON, presets, RNG, triple buffer |
-| `bounce_engine_tests` (13 cases) | Pattern player (bar-aligned wrap, pairing, chase, swap, jumps, preview), 808 glide/release, lead types, keys wobble, synthesised kit, sampler hot-swap, mixer mute/tails |
+| `bounce_tests` (84 cases) | Theory, voicing, the chord generator (in key, locks, determinism, borrowed sources, custom lengths), renderer, 808 (roots, register, lock to kick, glides), melody (in key, chord tones on strong beats, monophonic, density, repetition, bar locks), counter-melody (no clashes, fills gaps), drums (backbone, roll rates/curves/pitch, maps, style JSON), ideas/edits/arrangement, analysis of synthesised audio (BPM within 0.2%, key, chords, downbeat, detected → progression), speed helper, MIDI files with CCs and markers, JSON, presets, RNG, triple buffer |
+| `bounce_engine_tests` (14 cases) | Pattern player (bar-aligned wrap, pairing, chase, swap, jumps, preview), 808 glide/release, lead types, keys wobble, generated chords played through the keys and recognised by the Lab's chord detector, synthesised kit, sampler hot-swap, mixer mute/tails |
 | pluginval (CI) | Strictness 10 on Windows x64 |

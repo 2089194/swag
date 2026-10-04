@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <set>
 
 namespace bounce::gen
@@ -167,7 +168,8 @@ theory::Chord ChordGenerator::chooseChord (const HarmonyFunction& fn, const Chor
         const auto it = style.colourWeights.find (std::string (theory::qualityId (q)));
         const double colour = it != style.colourWeights.end() ? it->second : 0.5;
         const double tier = theory::qualityToneCount (q) - 3;
-        double w = colour * std::exp (-(tier - target) * (tier - target) / 0.45);
+        // Squared so the preset's favourite colours clearly win; complexity picks the richness.
+        double w = colour * colour * std::exp (-(tier - target) * (tier - target) / 0.4);
         if (avoid && avoid->root == root && avoid->quality == q && qualities.size() > 1)
             w = 0.0;
         weights.push_back (w);
@@ -279,6 +281,9 @@ Progression ChordGenerator::generate (const ChordGeneratorParams& params, const 
         && static_cast<int> (existing->slots.size()) == n && existing->bars == prog.bars)
         prog.customLengths = existing->customLengths;
 
+    if (params.useTemplates && fillFromTemplate (prog, known, params))
+        return prog;
+
     for (int i = 0; i < n; ++i)
     {
         if (known[static_cast<size_t> (i)])
@@ -306,6 +311,111 @@ Progression ChordGenerator::generate (const ChordGeneratorParams& params, const 
     }
 
     return prog;
+}
+
+bool ChordGenerator::fillFromTemplate (Progression& prog, std::vector<bool>& known, const ChordGeneratorParams& params) const
+{
+    const int n = static_cast<int> (prog.slots.size());
+    const auto& templates = theory::isMinorMode (params.key.scale) ? style.minorProgressions : style.majorProgressions;
+    if (templates.empty() || n == 0)
+        return false;
+
+    const double borrowed = std::clamp (params.borrowed, 0.0, 1.0);
+    const double mood = std::clamp (params.mood, -1.0, 1.0);
+
+    struct Option
+    {
+        std::vector<HarmonyFunction> seq;
+        double weight;
+    };
+    std::vector<Option> options;
+
+    for (const auto& t : templates)
+    {
+        const int len = static_cast<int> (t.chords.size());
+        if (len == 0)
+            continue;
+
+        std::vector<HarmonyFunction> seq;
+        bool ok = true;
+        bool hasBorrowed = false;
+        double sign = 0.0;
+        for (int i = 0; i < n && ok; ++i)
+        {
+            auto fn = parseHarmonyToken (t.chords[static_cast<size_t> (i % len)]);
+            if (! fn)
+            {
+                ok = false;
+                break;
+            }
+            fn->borrowed = ! isDiatonicFunction (*fn, params.key);
+            if ((fn->borrowed && borrowed <= 0.0) || qualitiesFor (*fn, params.key).empty())
+                ok = false;
+            if (known[static_cast<size_t> (i)] && prog.slots[static_cast<size_t> (i)].function.symbol != fn->symbol)
+                ok = false;
+            hasBorrowed |= fn->borrowed;
+            sign += moodSign (fn->family);
+            seq.push_back (*fn);
+        }
+        if (! ok)
+            continue;
+
+        // Loops flow: no chord repeated back to back, including across the loop seam.
+        for (int i = 0; i < n && ok; ++i)
+            if (n > 1 && seq[static_cast<size_t> (i)].symbol == seq[static_cast<size_t> ((i + 1) % n)].symbol)
+                ok = false;
+        if (! ok)
+            continue;
+
+        double w = t.weight;
+        if (len == n)
+            w *= 2.0;
+        else if (n % len != 0 && n > len)
+            w *= 0.3; // a shape stretched unevenly over the loop
+        else if (len <= 2 && n >= 4)
+            w *= 0.6; // two-chord vamps are a flavour, not the default
+        w *= std::exp (mood * (sign / n) * 3.0);
+        if (hasBorrowed)
+            w *= borrowed * 2.0;
+        if (w > 0.0)
+            options.push_back ({ std::move (seq), w });
+    }
+
+    if (options.empty())
+        return false;
+
+    std::vector<double> weights;
+    for (const auto& o : options)
+        weights.push_back (o.weight);
+    util::Random rng (util::deriveSeed (params.seed, 7777));
+    const int pick = rng.weightedIndex (weights);
+    if (pick < 0)
+        return false;
+
+    // The same chord keeps the same colour wherever it comes back in the loop.
+    std::map<std::string, theory::Chord> chosen;
+    for (int i = 0; i < n; ++i)
+        if (known[static_cast<size_t> (i)])
+            chosen.emplace (prog.slots[static_cast<size_t> (i)].function.symbol, prog.slots[static_cast<size_t> (i)].chord);
+
+    const auto& seq = options[static_cast<size_t> (pick)].seq;
+    for (int i = 0; i < n; ++i)
+    {
+        if (known[static_cast<size_t> (i)])
+            continue;
+        auto& slot = prog.slots[static_cast<size_t> (i)];
+        slot = {};
+        slot.function = seq[static_cast<size_t> (i)];
+        if (auto it = chosen.find (slot.function.symbol); it != chosen.end())
+            slot.chord = it->second;
+        else
+        {
+            slot.chord = chooseChord (slot.function, params, util::deriveSeed (params.seed, static_cast<uint64_t> (2 * i + 2)), nullptr);
+            chosen.emplace (slot.function.symbol, slot.chord);
+        }
+        known[static_cast<size_t> (i)] = true;
+    }
+    return true;
 }
 
 Progression ChordGenerator::reharmonise (const Progression& progression, int slotIndex,

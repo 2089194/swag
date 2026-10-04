@@ -4,8 +4,8 @@ Each section lists what was delivered, the design decisions behind it, and its k
 limitations. Build and run instructions are in the [README](../README.md#building). The
 architecture is described in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-**Verification status (all milestones).** The core has 77 test cases (~150k assertions) and the
-engine has 13 test cases (~95k assertions). Both pass, and the core is also clean under
+**Verification status (all milestones).** The core has 84 test cases (~150k assertions) and the
+engine has 14 test cases (~95k assertions). Both pass, and the core is also clean under
 AddressSanitizer and UBSan. pluginval passes at strictness 10 on **Windows x64 in CI**, where the core and engine tests
 also pass. I checked the UI through scripted screenshots of the standalone app, including a
 real Lab analysis of a WAV file and the hand-off to the generator. The target is Windows 64-bit
@@ -170,7 +170,7 @@ only.
 
 **Delivered**
 - A **larger UI** with a 1360×860 design size. It opens at the largest size that fits the screen
-  (up to 100%), resizes from 75% to 200% with a fixed aspect ratio, remembers the size, and is
+  (since the musicality pass: a moderate default), resizes with a fixed aspect ratio, remembers the size, and is
   all vector graphics at 60 fps.
 - **Module tabs** (Chords, 808, Melody, Drums, Arrange), each with its own accent colour.
 - A **4-strip mixer** with peak meters.
@@ -196,13 +196,48 @@ only.
 
 ---
 
+## Musicality and playback pass (after M5, from FL Studio feedback)
+
+**Problems reported:** chords didn't sound like chords, the 808 sounded random, the melody had
+no sense of phrase, Bounce doubled the notes dragged into FL whenever FL played, and the window
+opened full screen.
+
+**Delivered**
+- **Chords.** Loops now come from per-style progression templates, the loop shapes this style
+  uses, such as i–bVI–bIII–bVII, bVI–iv–i–v and IV–V–iii–vi. Colours lean on maj7, m7, m9 and
+  add9 (6/9, #11 and sus colours are rare). Voicings are searched across octaves with a clash
+  penalty, so no minor 2nds or minor 9ths between voices.
+- **808.** Roots only (no stray 5ths), in the octave that keeps the line smooth over the whole
+  loop. One programmed bar is repeated, with octave pops at fixed spots and glides into chosen
+  chord changes.
+- **Melody.** A pentatonic motif and a one-bar rhythm cell, re-anchored on a chord tone each bar,
+  in A B A B' or A A A A' phrases that resolve to the root and end on the tonic.
+- **Keys** are an FM electric piano, so every chord tone is distinct.
+- **Playback.** Bounce no longer follows FL's transport by default. **▶** in the top bar loops
+  the idea inside Bounce, **▶ on each lane** auditions one part, and **Sync FL** restores
+  following FL. A reopened project never starts playing.
+- **Window.** Opens at about 60% of the screen height, with a 60% minimum size. The last size
+  is remembered across instances.
+
+**Verification.** In a new engine test, generated loops played through the keys are run
+through the Lab's chord detector, and 40 of 48 chords (83%) are recognised as the chord played.
+Theory tests cover bass roots and smoothness, the repeated bar rhythm, melody resolution,
+range and stepwise motion, and cluster-free voicings.
+
+**Honest limits.** I can't listen to the producers' tracks. The rules encode widely known
+traits of the style (loop shapes, extended-chord colours, root-locked 808s with octave pops and
+slides, short pentatonic motifs), not analysis of their actual songs.
+
+---
+
 ## FL Studio test checklist
 
 Run these on Windows with FL Studio 2026:
 
 1. **Load.** Add Bounce as a generator. The window fits the screen, and resizing from the corner
    keeps the aspect ratio and is remembered.
-2. **Playback.** Press play: the loop starts on bar 1, the wheel, cards and lanes follow the
+2. **Playback.** With Sync FL off, FL's play button leaves Bounce silent, while ▶ in Bounce
+   loops it and a lane's ▶ plays only that part. With Sync FL on, press play: the loop starts on bar 1, the wheel, cards and lanes follow the
    playhead, and looping is seamless with no stuck notes on stop or jump.
 3. **Drag a part.** Drag each part's tile to a channel's Piano Roll: notes start at bar 1, the
    length is right, and the file name shows the chords, key and BPM.

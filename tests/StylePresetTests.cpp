@@ -113,6 +113,7 @@ TEST_CASE ("transition weight of zero forbids a move")
     {
         ChordGeneratorParams p;
         p.seed = seed;
+        p.useTemplates = false; // the Markov tables (used for reharmonising / filling around locks)
         for (const auto& s : gen.generate (p).slots)
             CHECK (s.function.symbol != "bVI");
     }

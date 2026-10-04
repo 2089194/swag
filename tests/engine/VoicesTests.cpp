@@ -5,6 +5,11 @@
 #include "Engine/Mixer.h"
 #include "Engine/Voices.h"
 
+#include "bounce/analysis/AudioAnalysis.h"
+#include "bounce/gen/ChordGenerator.h"
+#include "bounce/gen/ChordRenderer.h"
+
+#include <algorithm>
 #include <cmath>
 
 using namespace bounce;
@@ -107,6 +112,75 @@ TEST_CASE ("keys: wobble keeps output finite")
         keys.render (buf, midi, wobble);
         CHECK (peakOf (buf) > 0.01f);
     }
+}
+
+TEST_CASE ("keys: generated progressions are heard as the chords they are")
+{
+    // End to end: generate a loop, voice it, play it through the keys, then let the Lab's chord
+    // detector listen. Each detected chord must be part of the chord that was played (Am9 may be
+    // heard as Am7 or C), which is only true if the voicings and the voice read as real chords.
+    constexpr double bpm = 120.0, secPerBeat = 60.0 / bpm;
+    int matched = 0, total = 0;
+    for (uint64_t seed = 1; seed <= 6; ++seed)
+    {
+        const auto preset = gen::StylePreset::defaults();
+        gen::ChordGenerator generator (preset);
+        gen::ChordGeneratorParams cp;
+        cp.seed = seed;
+        const auto prog = generator.generate (cp);
+        auto perf = gen::ChordPerformance::fromPreset (preset);
+        perf.rhythm = gen::ChordRhythm::Sustain;
+        perf.humanise = 0.0;
+        const auto clip = gen::renderChords (prog, perf);
+
+        const int loops = 2;
+        const int numSamples = static_cast<int> (clip.lengthBeats * loops * secPerBeat * sr);
+        KeysSynth keys;
+        keys.prepare (sr, block, 2);
+        juce::AudioBuffer<float> out (2, numSamples);
+        out.clear();
+        juce::AudioBuffer<float> chunk (2, block);
+        std::vector<float> mono (static_cast<size_t> (numSamples));
+
+        juce::MidiBuffer all;
+        for (int l = 0; l < loops; ++l)
+            for (const auto& n : clip.notes)
+            {
+                const double t0 = (n.start + l * clip.lengthBeats) * secPerBeat;
+                const double t1 = t0 + n.length * secPerBeat;
+                all.addEvent (juce::MidiMessage::noteOn (1, n.pitch, static_cast<juce::uint8> (n.velocity)), static_cast<int> (t0 * sr));
+                all.addEvent (juce::MidiMessage::noteOff (1, n.pitch), juce::jmax (0, static_cast<int> (t1 * sr) - 1));
+            }
+        for (int pos = 0; pos < numSamples; pos += block)
+        {
+            const int num = std::min (block, numSamples - pos);
+            juce::AudioBuffer<float> view (chunk.getArrayOfWritePointers(), 2, num);
+            view.clear();
+            juce::MidiBuffer slice;
+            slice.addEvents (all, pos, num, -pos);
+            keys.render (view, slice, 0.0f);
+            for (int i = 0; i < num; ++i)
+                mono[static_cast<size_t> (pos + i)] = 0.5f * (view.getSample (0, i) + view.getSample (1, i));
+        }
+
+        const auto result = analysis::analyse (mono.data(), mono.size(), sr);
+        for (int l = 0; l < loops; ++l)
+            for (int i = 0; i < static_cast<int> (prog.slots.size()); ++i)
+            {
+                const double mid = (prog.slotStart (i) + 0.5 * prog.slotLength (i) + l * prog.lengthBeats()) * secPerBeat;
+                const auto it = std::find_if (result.chords.begin(), result.chords.end(),
+                                              [mid] (const analysis::DetectedChord& c) { return c.start <= mid && mid < c.end; });
+                ++total;
+                if (it == result.chords.end())
+                    continue;
+                const auto played = prog.slots[static_cast<size_t> (i)].chord.pitchClasses();
+                const auto heard = it->chord.pitchClasses();
+                if (std::all_of (heard.begin(), heard.end(), [&] (int pc) { return std::find (played.begin(), played.end(), pc) != played.end(); }))
+                    ++matched;
+            }
+    }
+    INFO (matched, " of ", total, " chords heard correctly");
+    CHECK (matched * 4 >= total * 3);
 }
 
 TEST_CASE ("drum kit: every lane is synthesised; sampler plays the internal encoding")

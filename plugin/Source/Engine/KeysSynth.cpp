@@ -5,28 +5,6 @@
 namespace bounce
 {
 
-namespace
-{
-inline double polyBlep (double t, double dt)
-{
-    if (t < dt)
-    {
-        t /= dt;
-        return t + t - t * t - 1.0;
-    }
-    if (t > 1.0 - dt)
-    {
-        t = (t - 1.0) / dt;
-        return t * t + t + t + 1.0;
-    }
-    return 0.0;
-}
-
-inline double saw (double phase, double inc)
-{
-    return 2.0 * phase - 1.0 - polyBlep (phase, inc);
-}
-} // namespace
 
 void KeysSynth::prepare (double newSampleRate, int maxBlockSize, int numChannels)
 {
@@ -43,7 +21,8 @@ void KeysSynth::prepare (double newSampleRate, int maxBlockSize, int numChannels
     chorus.setMix (0.35f);
 
 
-    juce::ADSR::Parameters ap { 0.006f, 0.9f, 0.55f, 0.45f };
+    // Electric-piano envelope: instant attack, a long natural decay to a soft sustain.
+    juce::ADSR::Parameters ap { 0.002f, 2.6f, 0.32f, 0.38f };
     for (auto& v : voices)
     {
         v.env.setSampleRate (sampleRate);
@@ -93,15 +72,19 @@ void KeysSynth::noteOn (int channel, int note, float velocity)
     v.channel = channel;
     v.age = ++ageCounter;
     v.velocity = velocity;
-    v.inc[0] = freq * 1.0035 / sampleRate;
-    v.inc[1] = freq * 0.9965 / sampleRate;
-    v.inc[2] = freq / sampleRate;
-    v.phase[0] = 0.0;
-    v.phase[1] = 0.37;
-    v.phase[2] = 0.0;
+    v.inc[0] = freq / sampleRate;           // carrier
+    v.inc[1] = freq * 1.0008 / sampleRate;  // body modulator (ratio 1, a hair detuned for movement)
+    v.inc[2] = freq * 14.0 / sampleRate;    // tine modulator: the bell-like "tink" of the attack
+    v.phase[0] = v.phase[1] = v.phase[2] = 0.0;
 
-    // Brighter when played harder, darker for low notes so spread voicings stay clean.
-    const double cutoff = juce::jlimit (300.0, 9000.0, 900.0 + 3800.0 * velocity + freq * 1.5);
+    // FM index: harder = brighter bark; low notes get less so spread voicings stay clean.
+    const double lowness = juce::jlimit (0.0, 1.0, (60.0 - note) / 24.0);
+    v.index = static_cast<float> ((0.9 + 1.6 * velocity) * (1.0 - 0.55 * lowness));
+    v.tine = static_cast<float> ((0.25 + 0.5 * velocity) * (1.0 - lowness));
+    v.indexDecay = static_cast<float> (std::exp (-1.0 / (0.35 * sampleRate)));
+    v.tineDecay = static_cast<float> (std::exp (-1.0 / (0.03 * sampleRate)));
+
+    const double cutoff = juce::jlimit (1500.0, 12000.0, 3000.0 + 6000.0 * velocity);
     v.cutoffCoeff = static_cast<float> (1.0 - std::exp (-juce::MathConstants<double>::twoPi * cutoff / sampleRate));
     v.pan = juce::jlimit (0.2f, 0.8f, 0.5f + static_cast<float> (note - 64) * 0.008f);
     v.env.noteOn();
@@ -138,17 +121,19 @@ void KeysSynth::renderVoices (int start, int num, float wobble)
         if (! v.active())
             continue;
 
-        const float amp = 0.11f * (0.35f + 0.65f * v.velocity);
+        const float amp = 0.16f * (0.35f + 0.65f * v.velocity);
         const float gl = std::sqrt (1.0f - v.pan), gr = std::sqrt (v.pan);
         // Lo-fi: wobble also darkens the tone.
         const float coeff = v.cutoffCoeff * (1.0f - 0.55f * wobble);
 
         for (int i = start; i < start + num; ++i)
         {
-            double s = 0.0;
-            s += 0.5 * saw (v.phase[0], v.inc[0]);
-            s += 0.5 * saw (v.phase[1], v.inc[1]);
-            s += 0.8 * std::sin (juce::MathConstants<double>::twoPi * v.phase[2]);
+            constexpr double twoPi = juce::MathConstants<double>::twoPi;
+            const double modulator = (0.35 + v.index) * std::sin (twoPi * v.phase[1])
+                                   + v.tine * std::sin (twoPi * v.phase[2]);
+            const double s = std::sin (twoPi * v.phase[0] + modulator);
+            v.index *= v.indexDecay;
+            v.tine *= v.tineDecay;
 
             for (int o = 0; o < 3; ++o)
             {

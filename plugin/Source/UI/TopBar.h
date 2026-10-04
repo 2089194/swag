@@ -43,6 +43,9 @@ private:
     IconButton transposeDown { "Transpose down a semitone", Icons::chevron (false) };
     IconButton transposeUp { "Transpose up a semitone", Icons::chevron (true) };
     juce::TextButton generateButton { "GENERATE" };
+    IconButton playButton { "Play / stop the loop inside Bounce. FL's own playback doesn't trigger Bounce unless Sync FL is on (Mixer panel).",
+                            Icons::play(), Colours::good };
+    bool shownPlaying = false;
     IconButton diceButton { "Randomise: new seed plus random colour, mood, voicing and rhythm", Icons::dice(), Colours::text };
     IconButton undoButton { "Undo (Ctrl+Z)", Icons::undo() };
     IconButton redoButton { "Redo (Ctrl+Shift+Z)", Icons::redo() };

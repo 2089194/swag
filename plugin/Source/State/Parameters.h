@@ -30,7 +30,8 @@ inline constexpr const char* keysWobble = "keysWobble";
 inline constexpr const char* internalSound = "internalSound";
 inline constexpr const char* midiOut     = "midiOut";
 inline constexpr const char* midiChannel = "midiChannel"; // chords; 808 = +1, melody = +2, counter = +3, drums = 10
-inline constexpr const char* preview     = "preview";
+inline constexpr const char* preview     = "preview";   // Play: loop inside Bounce on its own clock
+inline constexpr const char* syncHost    = "syncHost";  // follow FL's transport (off: only Play makes sound)
 inline constexpr const char* tempoView   = "tempoView";
 
 // 808 / bass.

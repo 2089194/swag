@@ -491,7 +491,7 @@ MixerPanel::MixerPanel (BounceProcessor& p)
     : processor (p),
       internalSound (p.getState(), params::internalSound, "Sound", Colours::chords),
       midiOut (p.getState(), params::midiOut, "MIDI Out", Colours::melody),
-      preview (p.getState(), params::preview, "Preview", Colours::good),
+      syncHost (p.getState(), params::syncHost, "Sync FL", Colours::good),
       dragAll ("Drag All", Colours::text, [this]
       {
           DragMidiButton::Payload payload;
@@ -502,7 +502,7 @@ MixerPanel::MixerPanel (BounceProcessor& p)
           return payload;
       })
 {
-    for (auto* c : std::initializer_list<juce::Component*> { &internalSound, &midiOut, &preview, &dragAll, &exportButton, &stylesFolderButton, &reloadStylesButton })
+    for (auto* c : std::initializer_list<juce::Component*> { &internalSound, &midiOut, &syncHost, &dragAll, &exportButton, &stylesFolderButton, &reloadStylesButton })
         addAndMakeVisible (c);
 
     strips.push_back (std::make_unique<Strip> (p, AudioPart::Chords, "KEYS", Colours::chords));
@@ -514,7 +514,7 @@ MixerPanel::MixerPanel (BounceProcessor& p)
 
     dragAll.setCompact (true);
     dragAll.setTooltip ("Every part as one multi-track MIDI file (drop on FL's Playlist)");
-    preview.setTooltip ("Loop the idea while the host is stopped");
+    syncHost.setTooltip ("Play along with FL's transport. Leave it off to drag notes into FL's Piano Roll without Bounce doubling them; use Play / the lane play buttons to listen inside Bounce.");
     midiOut.setTooltip ("Send all parts out of the plugin: chords on the MIDI channel, 808 +1, melody +2, counter +3, drums on 10");
     exportButton.setTooltip ("Write every part (and the arrangement) as .mid files into a folder");
     exportButton.onClick = [this] { exportToFolder(); };
@@ -582,7 +582,7 @@ void MixerPanel::resized()
     pills.removeFromLeft (6);
     midiOut.setBounds (pills.removeFromLeft (pw));
     pills.removeFromLeft (6);
-    preview.setBounds (pills);
+    syncHost.setBounds (pills);
     b.removeFromTop (8);
 
     auto bottom = b.removeFromBottom (28);

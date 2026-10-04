@@ -16,11 +16,6 @@ constexpr std::array<std::string_view, static_cast<size_t> (BassMode::NumModes)>
     "Root Follow", "Syncopated Bounce", "Octave Jumper", "Glide Heavy", "Sustain"
 };
 
-int fifthInterval (theory::ChordQuality q)
-{
-    const auto& iv = theory::qualityIntervals (q);
-    return iv.size() >= 3 ? iv[2] : 7; // dim chords use their b5
-}
 } // namespace
 
 std::string_view bassModeName (BassMode m) { return modeNames[static_cast<size_t> (m)]; }
@@ -34,6 +29,63 @@ int countGlides (const midi::MidiClip& clip)
     return glides;
 }
 
+namespace
+{
+/** One-bar 808 rhythms (16th steps). Picked once per loop and repeated every bar, the way a
+    producer programs a bar of 808 and loops it, so the line sounds intentional. */
+struct BassRhythm
+{
+    std::vector<int> steps;
+    std::vector<int> octaveSteps; // hits that pop up an octave (Octave Jumper / Bounce)
+};
+
+const std::vector<BassRhythm>& rhythmsFor (BassMode mode)
+{
+    static const std::vector<BassRhythm> rootFollow {
+        { { 0, 8 }, {} },
+        { { 0, 6, 8 }, {} },
+        { { 0, 10 }, {} },
+    };
+    static const std::vector<BassRhythm> bounce {
+        { { 0, 6, 10 }, { 10 } },
+        { { 0, 3, 6, 10 }, { 6 } },
+        { { 0, 3, 10, 14 }, { 14 } },
+        { { 0, 7, 10, 13 }, { 13 } },
+        { { 0, 3, 6, 10, 14 }, { 14 } },
+        { { 0, 3, 8, 11, 14 }, { 11 } },
+    };
+    static const std::vector<BassRhythm> octave {
+        { { 0, 3, 6, 10, 14 }, { 3, 10 } },
+        { { 0, 2, 6, 8, 10, 14 }, { 2, 10 } },
+        { { 0, 3, 8, 11 }, { 3, 11 } },
+        { { 0, 6, 8, 14 }, { 6, 14 } },
+    };
+    static const std::vector<BassRhythm> glide {
+        { { 0, 10 }, { 10 } },
+        { { 0, 6 }, { 6 } },
+        { { 0, 8, 14 }, { 14 } },
+    };
+    static const std::vector<BassRhythm> sustain { { { 0 }, {} } };
+
+    switch (mode)
+    {
+        case BassMode::RootFollow:       return rootFollow;
+        case BassMode::SyncopatedBounce: return bounce;
+        case BassMode::OctaveJumper:     return octave;
+        case BassMode::GlideHeavy:       return glide;
+        case BassMode::Sustain:
+        case BassMode::NumModes:         break;
+    }
+    return sustain;
+}
+
+int stepInBar (double t)
+{
+    const double inBar = t - std::floor (t / 4.0 + 1e-9) * 4.0;
+    return static_cast<int> (std::lround (inBar * 4.0)) % 16;
+}
+} // namespace
+
 midi::MidiClip generateBass (const Progression& prog, const std::vector<double>& kicks, const BassParams& p)
 {
     midi::MidiClip clip;
@@ -45,116 +97,149 @@ midi::MidiClip generateBass (const Progression& prog, const std::vector<double>&
 
     const double density = std::clamp (p.density, 0.0, 1.0);
     const double len = prog.lengthBeats();
+    const bool octaves = p.octaveRange >= 2;
+    util::Random rng (util::deriveSeed (p.seed, 300));
+
+    // --- One rhythm for the whole loop. Density leans towards the busier shapes.
+    const auto& rhythms = rhythmsFor (p.mode);
+    std::vector<double> rw;
+    for (const auto& r : rhythms)
+        rw.push_back (std::exp ((density - 0.5) * 2.5 * (static_cast<double> (r.steps.size()) - 3.5) / 2.0));
+    const auto& rhythm = rhythms[static_cast<size_t> (std::max (0, rng.weightedIndex (rw)))];
+
+    // --- Roots: each chord's bass note, in whichever octave keeps the line smooth, so it
+    // moves like a bass player's (F G A, not F1 G1 A1 then a leap up to D#2).
+    const int rootLow = p.lowNote;
+    const int rootHigh = p.lowNote + 16;
+    // Every octave assignment is tried (at most 2^8) and the one with the least total motion,
+    // loop seam included, wins; leaps beyond a 5th cost extra, and so does hugging an edge.
+    const int centre = p.lowNote + 8;
+    std::vector<std::vector<int>> options (static_cast<size_t> (n));
+    for (int i = 0; i < n; ++i)
+    {
+        const auto& chord = prog.slots[static_cast<size_t> (i)].chord;
+        const int pc = chord.bass.value_or (chord.root);
+        for (int c = rootLow + theory::wrapPc (pc - rootLow); c <= rootHigh; c += 12)
+            options[static_cast<size_t> (i)].push_back (c);
+    }
+    std::vector<int> roots (static_cast<size_t> (n));
+    std::vector<int> pick (static_cast<size_t> (n), 0);
+    double bestCost = 1e18;
+    for (bool more = true; more;)
+    {
+        double cost = 0.0;
+        for (int i = 0; i < n; ++i)
+        {
+            const int a0 = options[static_cast<size_t> (i)][static_cast<size_t> (pick[static_cast<size_t> (i)])];
+            const int j = (i + 1) % n;
+            const int b0 = options[static_cast<size_t> (j)][static_cast<size_t> (pick[static_cast<size_t> (j)])];
+            const int leap = std::abs (b0 - a0);
+            cost += leap + (leap > 7 ? 3.0 * (leap - 7) : 0.0);
+            cost += 0.15 * std::abs (a0 - centre);
+        }
+        if (cost < bestCost)
+        {
+            bestCost = cost;
+            for (int i = 0; i < n; ++i)
+                roots[static_cast<size_t> (i)] = options[static_cast<size_t> (i)][static_cast<size_t> (pick[static_cast<size_t> (i)])];
+        }
+        more = false;
+        for (int i = 0; i < n; ++i)
+        {
+            if (++pick[static_cast<size_t> (i)] < static_cast<int> (options[static_cast<size_t> (i)].size()))
+            {
+                more = true;
+                break;
+            }
+            pick[static_cast<size_t> (i)] = 0;
+        }
+    }
 
     struct Onset
     {
         double t;
         int pitch;
         int velocity;
+        bool pop;
     };
     std::vector<Onset> onsets;
 
     for (int i = 0; i < n; ++i)
     {
-        const auto& chord = prog.slots[static_cast<size_t> (i)].chord;
         const double s0 = prog.slotStart (i);
         const double s1 = s0 + prog.slotLength (i);
-        util::Random rng (util::deriveSeed (p.seed, static_cast<uint64_t> (300 + i)));
+        const int root = roots[static_cast<size_t> (i)];
 
-        const int rootPc = chord.bass.value_or (chord.root);
-        const int root = p.lowNote + theory::wrapPc (rootPc - p.lowNote);
-        const int fifth = root + fifthInterval (chord.quality) - (root + fifthInterval (chord.quality) > p.lowNote + 14 ? 12 : 0);
-        const int octave = p.octaveRange >= 2 ? root + 12 : root;
-
-        // Candidate onset times inside this chord.
         std::set<double> times { s0 };
-        auto addKicks = [&] (double keepChance)
+        if (p.mode != BassMode::Sustain && p.mode != BassMode::NumModes)
         {
-            for (double k : kicks)
-                if (k > s0 + 1e-6 && k < s1 - 1e-6 && rng.chance (keepChance))
-                    times.insert (k);
-        };
-
-        switch (p.mode)
-        {
-            case BassMode::Sustain:
-            case BassMode::NumModes:
-                break;
-
-            case BassMode::RootFollow:
-                if (p.lockToKick)
-                    addKicks (0.4 + 0.6 * density);
-                else
-                    for (double t = std::ceil (s0 / 2.0) * 2.0; t < s1 - 1e-6; t += 2.0)
-                        if (t > s0 + 1e-6 && rng.chance (0.5 + 0.5 * density))
+            if (p.lockToKick && ! kicks.empty())
+            {
+                // Every kick inside the chord. Sparse settings keep only kicks on the beat.
+                for (double k : kicks)
+                    if (k > s0 + 1e-6 && k < s1 - 1e-6
+                        && (density >= 0.3 || std::abs (k - std::round (k)) < 1e-6))
+                        times.insert (k);
+            }
+            else
+            {
+                for (double bar = std::floor (s0 / 4.0) * 4.0; bar < s1 - 1e-6; bar += 4.0)
+                    for (int step : rhythm.steps)
+                        if (const double t = bar + step * 0.25; t > s0 + 1e-6 && t < s1 - 1e-6)
                             times.insert (t);
-                break;
-
-            case BassMode::SyncopatedBounce:
-            case BassMode::OctaveJumper:
-                if (p.lockToKick)
-                    addKicks (0.75 + 0.25 * density);
-                else
-                    for (int step : { 3, 6, 10, 11, 14 })
-                        for (double bar = std::floor (s0 / 4.0) * 4.0; bar < s1; bar += 4.0)
-                            if (const double t = bar + step * 0.25; t > s0 + 1e-6 && t < s1 - 1e-6 && rng.chance (0.35 + 0.5 * density))
-                                times.insert (t);
-                // Extra syncopated 16ths on top.
-                for (double t = s0 + 0.75; t < s1 - 1e-6; t += 1.0)
-                    if (rng.chance (density * 0.25))
-                        times.insert (t);
-                break;
-
-            case BassMode::GlideHeavy:
-                if (p.lockToKick)
-                    addKicks (0.25 + 0.3 * density);
-                else if (s1 - s0 >= 4.0 && rng.chance (0.5 + 0.4 * density))
-                    times.insert (s0 + 2.5);
-                break;
+            }
         }
 
-        int k = 0;
+        int hitInChord = 0;
+        const int hitsInChord = static_cast<int> (times.size());
         for (double t : times)
         {
-            int pitch = root;
-            if (t > s0 + 1e-6)
+            const int step = stepInBar (t);
+            bool pop = false;
+            if (octaves && t > s0 + 1e-6)
             {
+                const bool listed = std::find (rhythm.octaveSteps.begin(), rhythm.octaveSteps.end(), step) != rhythm.octaveSteps.end();
                 switch (p.mode)
                 {
                     case BassMode::OctaveJumper:
-                        pitch = (k % 2 == 1) ? octave : root;
+                        // Locked to the kick, pop on the off-beat hits; otherwise the pattern's own pops.
+                        pop = p.lockToKick && ! kicks.empty() ? (step % 4 != 0) : listed;
                         break;
                     case BassMode::SyncopatedBounce:
-                    {
-                        const double w[] = { 3.0, 1.0, p.octaveRange >= 2 ? 1.2 : 0.0 };
-                        const int c = rng.weightedIndex (w);
-                        pitch = c == 1 ? fifth : c == 2 ? octave : root;
-                        break;
-                    }
                     case BassMode::GlideHeavy:
-                    {
-                        const double w[] = { 1.0, 1.0, p.octaveRange >= 2 ? 1.5 : 0.0 };
-                        const int c = rng.weightedIndex (w);
-                        pitch = c == 1 ? fifth : c == 2 ? octave : root;
+                        // One pop near the end of a chord: the classic 808 "bounce" up and back.
+                        pop = p.lockToKick && ! kicks.empty() ? (hitInChord == hitsInChord - 1 && hitsInChord >= 3 && t - s0 >= 2.0)
+                                                              : listed;
                         break;
-                    }
                     default:
-                        pitch = root;
                         break;
                 }
             }
-            onsets.push_back ({ t, pitch, t <= s0 + 1e-6 ? 112 : 98 + rng.nextIntInclusive (-6, 6) });
-            ++k;
+            const int pitch = pop ? root + 12 : root;
+            const int vel = t <= s0 + 1e-6 ? 112 : (pop ? 104 : 100);
+            onsets.push_back ({ t, pitch, vel, pop });
+            ++hitInChord;
         }
     }
 
     std::sort (onsets.begin(), onsets.end(), [] (const Onset& a, const Onset& b) { return a.t < b.t; });
 
-    // Lengths, then glides (overlaps) between different pitches.
-    util::Random glideRng (util::deriveSeed (p.seed, 777));
-    const double glideChance = std::clamp (p.glide * (p.mode == BassMode::GlideHeavy ? 1.6 : 1.0), 0.0, 1.0);
-    const double noteLength = std::clamp (p.noteLength, 0.1, 1.0);
+    // --- Which chord changes slide: decided once per loop so the glides land in the same
+    // places every time it repeats. More glide = more changes slide; the turnaround goes first.
+    const double glide = std::clamp (p.glide * (p.mode == BassMode::GlideHeavy ? 1.6 : 1.0), 0.0, 1.0);
+    std::set<double> glideInto;
+    if (glide > 0.0 && n > 1)
+    {
+        std::vector<int> order;
+        for (int i = n - 1; i >= 1; --i)
+            order.push_back (i);
+        const int count = std::clamp (static_cast<int> (std::lround (glide * (n - 1) + 0.25)), 1, n - 1);
+        for (int j = 0; j < count; ++j)
+            glideInto.insert (prog.slotStart (order[static_cast<size_t> (j)]));
+    }
+    const bool glidePops = glide >= 0.5;
 
+    const double noteLength = std::clamp (p.noteLength, 0.1, 1.0);
     for (size_t i = 0; i < onsets.size(); ++i)
     {
         const double next = i + 1 < onsets.size() ? onsets[i + 1].t : len;
@@ -167,10 +252,15 @@ midi::MidiClip generateBass (const Progression& prog, const std::vector<double>&
         note.length = p.mode == BassMode::Sustain ? gap : std::max (0.25, gap * noteLength);
         note.length = std::min (note.length, gap);
 
-        const bool canGlide = i + 1 < onsets.size() && onsets[i + 1].pitch != onsets[i].pitch
-                           && std::abs (onsets[i + 1].pitch - onsets[i].pitch) <= 12;
-        if (canGlide && glideRng.chance (glideChance))
-            note.length = gap + 0.125; // overlap a 32nd: the next note slides from this one
+        if (i + 1 < onsets.size())
+        {
+            const auto& nx = onsets[i + 1];
+            const int jump = std::abs (nx.pitch - onsets[i].pitch);
+            const bool intoChange = glideInto.count (nx.t) > 0;
+            const bool intoPop = glidePops && nx.pop;
+            if (jump > 0 && jump <= 12 && (intoChange || intoPop))
+                note.length = gap + 0.125; // overlap a 32nd: the next note slides from this one
+        }
 
         note.length = std::min (note.length, len - note.start);
         clip.notes.push_back (note);

@@ -204,9 +204,10 @@ TEST_CASE ("locks are respected")
         CHECK (next.seed == seed);
     }
 
-    // Locking doesn't disturb the other slots' random streams: a slot whose context is
-    // unchanged by the lock gets the same chord as in a fully unlocked run.
+    // Markov mode: locking doesn't disturb the other slots' random streams: a slot whose
+    // context is unchanged by the lock gets the same chord as in a fully unlocked run.
     params.seed = 99;
+    params.useTemplates = false;
     const auto base = gen.generate (params);
     auto locked = base;
     locked.slots[2].locked = true;
@@ -338,6 +339,59 @@ TEST_CASE ("idea history and undo")
     restored.ideasFromJson (h.ideasToJson());
     REQUIRE (restored.ideas().size() == 3);
     CHECK (restored.ideas()[1].idea == h.ideas()[1].idea);
+}
+
+TEST_CASE ("progressions come from the style's loop shapes")
+{
+    const auto preset = StylePreset::defaults();
+    ChordGenerator gen (preset);
+    auto shapeOf = [] (const Progression& p)
+    {
+        std::vector<std::string> s;
+        for (const auto& slot : p.slots)
+            s.push_back (slot.function.symbol);
+        return s;
+    };
+
+    for (auto scale : { ScaleType::NaturalMinor, ScaleType::Major })
+    {
+        const auto& shapes = scale == ScaleType::Major ? preset.majorProgressions : preset.minorProgressions;
+        for (uint64_t seed = 0; seed < 60; ++seed)
+        {
+            auto params = paramsFor ({ 4, scale }, seed);
+            const auto prog = gen.generate (params);
+            const auto shape = shapeOf (prog);
+            bool matches = false;
+            for (const auto& t : shapes)
+            {
+                std::vector<std::string> cyc;
+                for (size_t i = 0; i < shape.size(); ++i)
+                    cyc.push_back (t.chords[i % t.chords.size()]);
+                matches |= cyc == shape;
+            }
+            INFO (prog.chordNames());
+            CHECK (matches);
+
+            // A chord that comes back keeps its colour.
+            for (size_t i = 0; i < prog.slots.size(); ++i)
+                for (size_t j = 0; j < prog.slots.size(); ++j)
+                    if (prog.slots[i].function.symbol == prog.slots[j].function.symbol)
+                        CHECK (prog.slots[i].chord == prog.slots[j].chord);
+        }
+    }
+}
+
+TEST_CASE ("a preset's own loop shapes replace the built-in ones")
+{
+    auto preset = StylePreset::defaults();
+    preset.minorProgressions = { { { "i", "bVII" }, 1.0 } };
+    ChordGenerator gen (preset);
+    for (uint64_t seed = 0; seed < 30; ++seed)
+    {
+        const auto prog = gen.generate (paramsFor ({ 9, ScaleType::NaturalMinor }, seed));
+        for (size_t i = 0; i < prog.slots.size(); ++i)
+            CHECK (prog.slots[i].function.symbol == (i % 2 == 0 ? "i" : "bVII"));
+    }
 }
 
 TEST_CASE ("custom chord lengths")

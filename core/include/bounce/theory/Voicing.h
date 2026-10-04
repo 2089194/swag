@@ -59,6 +59,10 @@ struct Voicing
     or sits nearest the middle of the register otherwise. Deterministic. */
 Voicing voiceChord (const Chord& chord, const VoicingParams& params, const Voicing* previous = nullptr);
 
+/** Cost of clashing / muddy spacing in an ascending voicing (minor 2nds between neighbours,
+    close intervals in the low register). `belowNote` is the left-hand top note (or INT_MIN). */
+int voicingClashPenalty (const std::vector<int>& notes, int belowNote);
+
 /** Sum of absolute semitone motion between two voicings (nearest-note matching, symmetric). */
 int voiceLeadingDistance (const Voicing& a, const Voicing& b);
 

@@ -14,9 +14,9 @@ namespace bounce::gen
 enum class BassMode
 {
     RootFollow,       // root on every chord, re-struck on kicks/beats
-    SyncopatedBounce, // syncopated 16ths locked to the kick, 5ths and octaves
-    OctaveJumper,     // root / octave alternation on the off-beats
-    GlideHeavy,       // fewer, longer notes with slides between them
+    SyncopatedBounce, // a looped syncopated bar (or the kick), with an octave pop
+    OctaveJumper,     // root on the beat, octave on the off-beat hits
+    GlideHeavy,       // few long notes that slide between chords and up the octave
     Sustain,          // one held root per chord
     NumModes
 };

@@ -19,7 +19,8 @@
       "V":   { "i": 3.0, "bVI": 2.0 },
       "bII": { "V": 2.0, "i": 1.5 }
     },
-    "colours": { "min9": 2.0, "minmaj7": 0.8, "min7": 1.5, "maj7": 1.2, "maj7s11": 0.6, "add9": 0.4, "6_9": 0.2 }
+    "colours": { "min9": 2.0, "min7": 1.8, "maj7": 1.5, "add9": 0.6, "minmaj7": 0.05, "maj7s11": 0.05, "6_9": 0.05, "dom7": 0.8 },
+    "minorProgressions": [ { "chords": ["i", "bVI", "iv", "V"], "weight": 2 }, { "chords": ["i", "iv", "V", "bVI"], "weight": 1.5 }, { "chords": ["i", "bVI", "bIII", "V"], "weight": 1.5 }, { "chords": ["bVI", "iv", "i", "V"], "weight": 1.2 }, { "chords": ["i", "bVI", "iv", "v"], "weight": 1.5 }, { "chords": ["i", "bII", "bVI", "V"], "weight": 0.5 }, { "chords": ["i", "iv"], "weight": 1.5 }, { "chords": ["i", "bVI"], "weight": 1.5 } ]
   },
   "voicing": { "style": "close", "low": 50, "high": 76 },
   "performance": {

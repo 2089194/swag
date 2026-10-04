@@ -88,8 +88,48 @@ TEST_CASE ("repetition and catchiness reuse the motif rhythm")
     std::vector<std::set<long>> rhythms (4);
     for (const auto& n : clip.notes)
         rhythms[static_cast<size_t> (n.start / 4.0)].insert (std::lround (std::fmod (n.start, 4.0) * 12.0));
-    for (int bar = 1; bar < 4; ++bar)
+    for (int bar = 1; bar < 3; ++bar)
         CHECK (rhythms[static_cast<size_t> (bar)] == rhythms[0]);
+    // The phrase's last bar (A') keeps the rhythm but may leave out the final hit to breathe.
+    CHECK (std::includes (rhythms[0].begin(), rhythms[0].end(), rhythms[3].begin(), rhythms[3].end()));
+    CHECK (rhythms[3].size() + 1 >= rhythms[0].size());
+}
+
+TEST_CASE ("melody phrases resolve: the loop ends on the tonic or the last chord's root")
+{
+    for (uint64_t seed = 0; seed < 40; ++seed)
+    {
+        const auto pr = prog (seed);
+        MelodyParams p;
+        p.seed = seed;
+        const auto clip = generateMelody (pr, p);
+        REQUIRE_FALSE (clip.notes.empty());
+        const auto& lastChord = pr.slots.back().chord;
+        const int pc = theory::wrapPc (clip.notes.back().pitch);
+        CHECK ((pc == pr.key.tonic || pc == lastChord.root));
+    }
+}
+
+TEST_CASE ("melody stays in a singable range and moves mostly by step")
+{
+    int steps = 0, leaps = 0;
+    for (uint64_t seed = 0; seed < 40; ++seed)
+    {
+        const auto pr = prog (seed);
+        MelodyParams p;
+        p.seed = seed;
+        const auto clip = generateMelody (pr, p);
+        int lo = 127, hi = 0;
+        for (size_t i = 0; i < clip.notes.size(); ++i)
+        {
+            lo = std::min (lo, clip.notes[i].pitch);
+            hi = std::max (hi, clip.notes[i].pitch);
+            if (i > 0)
+                (std::abs (clip.notes[i].pitch - clip.notes[i - 1].pitch) <= 5 ? steps : leaps)++;
+        }
+        CHECK (hi - lo <= 19); // an octave and a 5th at most
+    }
+    CHECK (steps > leaps * 3);
 }
 
 TEST_CASE ("locked bars are kept, others regenerate")

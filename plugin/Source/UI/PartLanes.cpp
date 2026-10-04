@@ -370,6 +370,8 @@ void DrumGrid::paint (juce::Graphics& g)
 PartLane::PartLane (Session& s, Part p, std::function<double()> source)
     : session (s),
       part (p),
+      listen ("Listen to " + juce::String (std::string (gen::partName (p))) + " on its own inside Bounce (click again to stop)",
+              Icons::play(), partColour (p)),
       dice ("Re-roll " + juce::String (std::string (gen::partName (p))) + " (new seed, keeps everything else)", Icons::dice(), partColour (p)),
       clear ("Clear hand edits", Icons::undo()),
       counterDice ("Re-roll the counter-melody", Icons::dice(), partColour (Part::Counter)),
@@ -383,11 +385,12 @@ PartLane::PartLane (Session& s, Part p, std::function<double()> source)
           return payload;
       })
 {
+    listen.onClick = [this] { session.toggleListen (part); tick(); };
     dice.onClick = [this] { session.regeneratePart (part); };
     clear.onClick = [this] { session.clearEdits (part); };
     counterDice.onClick = [this] { session.regeneratePart (Part::Counter); };
     drag.setCompact (true);
-    for (auto* c : std::initializer_list<juce::Component*> { &dice, &clear, &drag })
+    for (auto* c : std::initializer_list<juce::Component*> { &listen, &dice, &clear, &drag })
         addAndMakeVisible (c);
     addChildComponent (counterDice);
 
@@ -413,6 +416,12 @@ void PartLane::changeListenerCallback (juce::ChangeBroadcaster*)
 
 void PartLane::tick()
 {
+    if (const bool on = session.isListeningTo (part); on != shownListening)
+    {
+        shownListening = on;
+        listen.setIcon (on ? Icons::stop() : Icons::play());
+        listen.setToggleState (on, juce::dontSendNotification);
+    }
     if (roll != nullptr)
         roll->tick();
     if (drumGrid != nullptr)
@@ -431,7 +440,8 @@ void PartLane::resized()
 
     header.removeFromLeft (10);
     auto top = header.removeFromTop (header.getHeight() / 2).reduced (0, 2);
-    top.removeFromLeft (70); // name
+    top.removeFromLeft (62); // name
+    listen.setBounds (top.removeFromLeft (26));
     dice.setBounds (top.removeFromLeft (26));
     counterDice.setBounds (top.removeFromLeft (26));
     clear.setBounds (top.removeFromLeft (26));

@@ -41,6 +41,8 @@ TopBar::TopBar (Session& s, juce::AudioProcessorValueTreeState& state, std::func
     generateButton.onClick = [this] { session.generate(); };
     addAndMakeVisible (generateButton);
 
+    playButton.onClick = [this] { session.setPlaying (! session.isPlaying()); tick(); };
+    addAndMakeVisible (playButton);
     diceButton.onClick = [this] { session.randomise(); };
     undoButton.onClick = [this] { session.undo(); };
     redoButton.onClick = [this] { session.redo(); };
@@ -108,6 +110,13 @@ void TopBar::tick()
         shownBpm = bpm;
         shownTempoView = tempoView;
         repaint (tempoArea);
+    }
+
+    if (const bool playing = session.isPlaying(); playing != shownPlaying)
+    {
+        shownPlaying = playing;
+        playButton.setIcon (playing ? Icons::stop() : Icons::play());
+        playButton.setToggleState (playing, juce::dontSendNotification);
     }
 }
 
@@ -250,10 +259,10 @@ void TopBar::resized()
 {
     auto b = getLocalBounds().reduced (12, 10);
     b.removeFromLeft (150); // logo
-    viewArea = b.removeFromLeft (190).reduced (0, 4);
+    viewArea = b.removeFromLeft (176).reduced (0, 4);
     b.removeFromLeft (16);
 
-    styleBox.setBounds (b.removeFromLeft (170));
+    styleBox.setBounds (b.removeFromLeft (150));
     b.removeFromLeft (10);
     keyBox.setBounds (b.removeFromLeft (84));
     b.removeFromLeft (4);
@@ -275,6 +284,8 @@ void TopBar::resized()
     diceButton.setBounds (b.removeFromRight (40));
     b.removeFromRight (6);
     generateButton.setBounds (b.removeFromRight (124));
+    b.removeFromRight (6);
+    playButton.setBounds (b.removeFromRight (40));
 }
 
 } // namespace bounce::ui

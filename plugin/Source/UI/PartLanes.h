@@ -89,12 +89,15 @@ public:
 private:
     Session& session;
     gen::Part part;
+    IconButton listen;
     IconButton dice;
     IconButton clear;
     IconButton counterDice;
     DragMidiButton drag;
     std::unique_ptr<PartRoll> roll;
     std::unique_ptr<DrumGrid> drumGrid;
+
+    bool shownListening = false;
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
 };

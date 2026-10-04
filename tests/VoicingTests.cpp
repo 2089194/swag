@@ -3,6 +3,7 @@
 #include "bounce/theory/Voicing.h"
 
 #include <algorithm>
+#include <climits>
 #include <set>
 
 using namespace bounce::theory;
@@ -94,20 +95,38 @@ TEST_CASE ("voice leading prefers small movement")
     const auto c = voiceChord ({ 0, ChordQuality::Major7, {} }, p);
     const auto withVL = voiceChord ({ 5, ChordQuality::Major7, {} }, p, &c);
 
-    // Every other inversion of Fmaj7 in range moves at least as much.
+    // Every other clash-free inversion of Fmaj7 in range moves at least as much (the ones with
+    // E under F are smoother on paper but sound like a cluster).
+    CHECK (voicingClashPenalty (withVL.notes, INT_MIN) == 0);
     for (int inv = 0; inv < 4; ++inv)
     {
         auto forced = p;
         forced.inversion = inv;
         const auto alt = voiceChord ({ 5, ChordQuality::Major7, {} }, forced, &c);
-        CHECK (voiceLeadingDistance (c, withVL) <= voiceLeadingDistance (c, alt));
+        if (voicingClashPenalty (alt.notes, INT_MIN) == 0)
+            CHECK (voiceLeadingDistance (c, withVL) <= voiceLeadingDistance (c, alt));
     }
 
-    // Common tones (C, E) are held.
+    // A common tone is held in place.
     CHECK (std::count_if (withVL.notes.begin(), withVL.notes.end(), [&] (int n)
     {
         return std::find (c.notes.begin(), c.notes.end(), n) != c.notes.end();
-    }) >= 2);
+    }) >= 1);
+}
+
+TEST_CASE ("rich chords are voiced without semitone clusters")
+{
+    for (auto style : { VoicingStyle::Close, VoicingStyle::Spread, VoicingStyle::FlipStab })
+        for (auto q : { ChordQuality::Major7, ChordQuality::Minor7, ChordQuality::Major9, ChordQuality::Minor9, ChordQuality::Add9 })
+            for (int root = 0; root < 12; ++root)
+            {
+                VoicingParams p;
+                p.style = style;
+                const auto v = voiceChord ({ root, q, {} }, p);
+                INFO (voicingStyleName (style), " ", qualityId (q), " root ", root);
+                for (size_t i = 1; i < v.notes.size(); ++i)
+                    CHECK (v.notes[i] - v.notes[i - 1] != 1);
+            }
 }
 
 TEST_CASE ("forced inversion and octave shift")

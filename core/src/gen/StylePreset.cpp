@@ -55,17 +55,73 @@ TransitionTable defaultMinorTransitions()
     };
 }
 
+// The colours this lane actually uses: maj7 / m7 / m9 / add9, with the exotic ones rare.
 std::map<std::string, double> defaultColourWeights()
 {
     return {
-        { "maj", 1.0 },  { "maj7", 1.6 },  { "add9", 1.2 },  { "6_9", 0.7 },  { "maj9", 1.0 },
-        { "maj7s11", 0.3 }, { "dom7", 0.35 }, { "dom9", 0.25 }, { "sus2", 0.5 }, { "maj7sus2", 0.4 },
-        { "maj6", 0.3 },
-        { "min", 1.0 },  { "min7", 1.5 },  { "madd9", 0.8 }, { "min9", 1.6 },  { "min11", 0.6 },
-        { "min6", 0.2 }, { "minmaj7", 0.1 },
-        { "dim", 1.0 },  { "m7b5", 1.2 },  { "aug", 1.0 },
+        { "maj", 0.8 },  { "maj7", 2.0 },  { "add9", 1.0 },  { "6_9", 0.15 }, { "maj9", 0.9 },
+        { "maj7s11", 0.05 }, { "dom7", 0.5 }, { "dom9", 0.1 }, { "sus2", 0.15 }, { "maj7sus2", 0.05 },
+        { "maj6", 0.05 }, { "dom7sus4", 0.05 },
+        { "min", 0.8 },  { "min7", 2.0 },  { "madd9", 0.6 }, { "min9", 1.6 },  { "min11", 0.15 },
+        { "min6", 0.03 }, { "minmaj7", 0.01 }, { "m6_9", 0.03 },
+        { "dim", 1.0 },  { "m7b5", 1.2 },  { "aug", 0.2 },
     };
 }
+
+using Templates = std::vector<ProgressionTemplate>;
+
+// Loop shapes common in melodic trap / swag / plugg / R&B-leaning type beats. No shape repeats a
+// chord back to back or across the loop seam. Borrowed chords (iv in major, V in minor) are only
+// picked when the Borrowed control allows them.
+Templates defaultMinorProgressions()
+{
+    return {
+        { { "i", "bVI", "bIII", "bVII" }, 3.0 },
+        { { "i", "bVII", "bVI", "bVII" }, 2.0 },
+        { { "bVI", "bVII", "i", "v" }, 1.5 },
+        { { "i", "iv", "bVI", "bVII" }, 1.8 },
+        { { "i", "bVI", "iv", "v" }, 1.5 },
+        { { "bVI", "iv", "i", "v" }, 2.0 },
+        { { "i", "v", "bVI", "iv" }, 1.5 },
+        { { "i", "bIII", "bVII", "iv" }, 1.5 },
+        { { "iv", "bVI", "i", "bVII" }, 1.2 },
+        { { "bVI", "bIII", "bVII", "i" }, 1.5 },
+        { { "i", "bVI", "bIII", "V" }, 1.0 },
+        { { "i", "iv", "V", "bVI" }, 0.7 },
+        { { "i", "iv" }, 2.0 },
+        { { "i", "bVI" }, 2.0 },
+        { { "bVI", "bVII" }, 1.2 },
+        { { "i", "bVII" }, 1.0 },
+        { { "i", "bVI", "bVII" }, 1.2 },
+        { { "i", "iv", "bVII" }, 1.0 },
+    };
+}
+
+Templates defaultMajorProgressions()
+{
+    return {
+        { { "IV", "V", "iii", "vi" }, 3.0 },
+        { { "I", "V", "vi", "IV" }, 2.5 },
+        { { "vi", "IV", "I", "V" }, 2.5 },
+        { { "I", "vi", "IV", "V" }, 1.5 },
+        { { "ii", "V", "I", "vi" }, 2.0 },
+        { { "IV", "iii", "ii", "I" }, 1.5 },
+        { { "I", "iii", "vi", "IV" }, 1.5 },
+        { { "vi", "V", "IV", "V" }, 1.0 },
+        { { "IV", "I", "V", "vi" }, 1.5 },
+        { { "I", "iii", "IV", "iv" }, 1.0 },
+        { { "IV", "iv", "I", "vi" }, 0.8 },
+        { { "I", "bVII", "IV", "V" }, 0.5 },
+        { { "IV", "iii" }, 1.5 },
+        { { "I", "IV" }, 1.5 },
+        { { "ii", "V" }, 1.0 },
+        { { "vi", "IV" }, 1.2 },
+        { { "IV", "V", "vi" }, 1.2 },
+        { { "I", "vi", "IV" }, 1.0 },
+    };
+}
+
+Templates templatesFromJson (const util::Json& arr, std::vector<std::string>* warnings);
 
 /** Canonical token ("ii\u00B0" -> "iio"), or empty (with a warning) when the token is invalid. */
 std::string canonicalToken (const std::string& token, std::vector<std::string>* warnings)
@@ -75,6 +131,29 @@ std::string canonicalToken (const std::string& token, std::vector<std::string>* 
     if (warnings)
         warnings->push_back ("unknown harmony token '" + token + "'");
     return {};
+}
+
+Templates templatesFromJson (const util::Json& arr, std::vector<std::string>* warnings)
+{
+    Templates out;
+    for (const auto& item : arr.asArray())
+    {
+        ProgressionTemplate t;
+        const auto& chords = item.isArray() ? item : item["chords"];
+        if (item.isObject())
+            t.weight = item["weight"].asNumber (1.0);
+        bool ok = true;
+        for (const auto& c : chords.asArray())
+        {
+            const auto tok = canonicalToken (c.asString(), warnings);
+            if (tok.empty())
+                ok = false;
+            t.chords.push_back (tok);
+        }
+        if (ok && ! t.chords.empty() && t.chords.size() <= 8)
+            out.push_back (std::move (t));
+    }
+    return out;
 }
 
 void mergeTable (TransitionTable& into, const util::Json& json, std::vector<std::string>* warnings)
@@ -224,6 +303,8 @@ StylePreset StylePreset::defaults()
     p.majorStartWeights = { { "I", 3.0 }, { "vi", 2.0 }, { "IV", 2.0 }, { "ii", 1.0 } };
     p.minorStartWeights = { { "i", 3.0 }, { "bVI", 2.0 }, { "iv", 1.5 }, { "bIII", 1.0 } };
     p.colourWeights = defaultColourWeights();
+    p.majorProgressions = defaultMajorProgressions();
+    p.minorProgressions = defaultMinorProgressions();
     return p;
 }
 
@@ -260,6 +341,13 @@ StylePreset StylePreset::fromJson (const util::Json& j, std::vector<std::string>
     p.defaultComplexity = h["complexity"].asNumber (p.defaultComplexity);
     p.defaultMood = h["mood"].asNumber (p.defaultMood);
     p.borrowedChordAmount = h["borrowed"].asNumber (p.borrowedChordAmount);
+
+    if (h.has ("majorProgressions"))
+        if (auto t = templatesFromJson (h["majorProgressions"], warnings); ! t.empty())
+            p.majorProgressions = std::move (t);
+    if (h.has ("minorProgressions"))
+        if (auto t = templatesFromJson (h["minorProgressions"], warnings); ! t.empty())
+            p.minorProgressions = std::move (t);
 
     mergeTable (p.majorTransitions, h["majorTransitions"], warnings);
     mergeTable (p.minorTransitions, h["minorTransitions"], warnings);
@@ -366,6 +454,24 @@ util::Json StylePreset::toJson() const
     h.set ("majorTransitions", tableToJson (majorTransitions));
     h.set ("minorTransitions", tableToJson (minorTransitions));
     h.set ("colours", weightsToJson (colourWeights));
+    auto templatesToJson = [] (const std::vector<ProgressionTemplate>& list)
+    {
+        Json arr;
+        arr.asArray();
+        for (const auto& t : list)
+        {
+            Json item, chords;
+            chords.asArray();
+            for (const auto& c : t.chords)
+                chords.push (c);
+            item.set ("chords", std::move (chords));
+            item.set ("weight", t.weight);
+            arr.push (std::move (item));
+        }
+        return arr;
+    };
+    h.set ("majorProgressions", templatesToJson (majorProgressions));
+    h.set ("minorProgressions", templatesToJson (minorProgressions));
     j.set ("harmony", std::move (h));
 
     Json v;

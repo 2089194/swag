@@ -108,7 +108,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     layout.add (toggle (internalSound, "Internal Sound", true));
     layout.add (toggle (midiOut, "MIDI Out", true));
     layout.add (std::make_unique<AudioParameterInt> (ParameterID { midiChannel, 1 }, "MIDI Channel", 1, 16, 1));
-    layout.add (toggle (preview, "Preview", false));
+    layout.add (toggle (preview, "Play", false));
+    layout.add (toggle (syncHost, "Sync To Host", false));
     layout.add (choice (tempoView, "Tempo View", { "Normal", "Half-time", "Double-time" }, 0));
 
     // --- 808.
@@ -193,7 +194,7 @@ bool isChordHarmonyParam (const juce::String& id)
 bool affectsRendering (const juce::String& id)
 {
     // Everything that shapes generated notes but not the audio-only mixer / voice settings.
-    static const juce::StringArray audioOnly { internalSound, midiOut, preview, tempoView, keysWobble, bassDecay, bassPunch, leadType };
+    static const juce::StringArray audioOnly { internalSound, midiOut, preview, syncHost, tempoView, keysWobble, bassDecay, bassPunch, leadType };
     if (audioOnly.contains (id))
         return false;
     for (int p = 0; p < numAudioParts; ++p)

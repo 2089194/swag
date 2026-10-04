@@ -556,6 +556,58 @@ void Session::applyProgression (const gen::Progression& p)
 }
 
 //==============================================================================
+namespace
+{
+AudioPart audioPartOf (gen::Part part)
+{
+    switch (part)
+    {
+        case gen::Part::Chords:  return AudioPart::Chords;
+        case gen::Part::Bass:    return AudioPart::Bass;
+        case gen::Part::Melody:
+        case gen::Part::Counter: return AudioPart::Melody;
+        case gen::Part::Drums:
+        case gen::Part::NumParts: break;
+    }
+    return AudioPart::Drums;
+}
+} // namespace
+
+bool Session::isPlaying() const
+{
+    return apvts.getRawParameterValue (params::preview)->load() > 0.5f;
+}
+
+void Session::setPlaying (bool shouldPlay)
+{
+    if (auto* p = apvts.getParameter (params::preview))
+        p->setValueNotifyingHost (shouldPlay ? 1.0f : 0.0f);
+}
+
+bool Session::isListeningTo (gen::Part part) const
+{
+    if (! isPlaying())
+        return false;
+    const auto target = audioPartOf (part);
+    for (int i = 0; i < numAudioParts; ++i)
+    {
+        const bool solo = apvts.getRawParameterValue (params::mixId (static_cast<AudioPart> (i), params::fSolo))->load() > 0.5f;
+        if (solo != (static_cast<AudioPart> (i) == target))
+            return false;
+    }
+    return true;
+}
+
+void Session::toggleListen (gen::Part part)
+{
+    const bool stop = isListeningTo (part);
+    const auto target = audioPartOf (part);
+    for (int i = 0; i < numAudioParts; ++i)
+        if (auto* p = apvts.getParameter (params::mixId (static_cast<AudioPart> (i), params::fSolo)))
+            p->setValueNotifyingHost (! stop && static_cast<AudioPart> (i) == target ? 1.0f : 0.0f);
+    setPlaying (! stop);
+}
+
 void Session::undo()
 {
     if (auto p = history.undo())

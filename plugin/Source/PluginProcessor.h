@@ -117,6 +117,7 @@ private:
     struct ParamPointers
     {
         std::atomic<float>* preview = nullptr;
+        std::atomic<float>* syncHost = nullptr;
         std::atomic<float>* internalSound = nullptr;
         std::atomic<float>* midiOut = nullptr;
         std::atomic<float>* keysWobble = nullptr;

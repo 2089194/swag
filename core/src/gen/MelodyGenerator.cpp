@@ -77,39 +77,39 @@ double stepWeight (int d)
     }
 }
 
-std::vector<int> pickRhythm (util::Random& rng, int gridSteps, double density, bool triplet)
+/** Hand-picked one-bar rhythms (16th steps, or triplet 8ths/16ths on a 12 grid), from sparse to
+    busy. Melodies in this style are built from short rhythmic cells that repeat, so a cell is
+    chosen once and the phrase is built from it. */
+const std::vector<std::vector<int>>& rhythmCells (bool triplet, int tier)
 {
-    const int k = std::clamp (static_cast<int> (std::lround (2.0 + density * 6.0)), 2, triplet ? 8 : 9);
-    std::vector<double> w (static_cast<size_t> (gridSteps));
-    for (int s = 0; s < gridSteps; ++s)
-    {
-        if (triplet)
-            w[static_cast<size_t> (s)] = s % 3 == 0 ? 3.0 : 1.4;
-        else
-            w[static_cast<size_t> (s)] = s % 4 == 0 ? 3.0 : s % 2 == 0 ? 2.2 : 0.6 + density;
-    }
-
-    std::set<int> chosen;
-    if (rng.chance (0.7))
-        chosen.insert (rng.chance (0.6) ? 0 : (triplet ? 3 : 2));
-    while (static_cast<int> (chosen.size()) < k)
-    {
-        const int s = rng.weightedIndex (w);
-        if (s < 0)
-            break;
-        chosen.insert (s);
-        w[static_cast<size_t> (s)] = 0.0;
-    }
-    return { chosen.begin(), chosen.end() };
+    static const std::vector<std::vector<int>> straight[3] {
+        { { 0, 6, 8 }, { 0, 3, 8 }, { 2, 8, 10 }, { 0, 6, 10 }, { 0, 3, 6 } },
+        { { 0, 3, 6, 8, 11 }, { 0, 2, 6, 8, 14 }, { 0, 3, 6, 10, 12 }, { 2, 4, 8, 10, 14 }, { 0, 4, 6, 10 }, { 0, 3, 6, 8, 12 } },
+        { { 0, 2, 3, 6, 8, 10, 11, 14 }, { 0, 1, 3, 6, 8, 9, 11, 14 }, { 0, 2, 4, 7, 8, 10, 12, 14 }, { 0, 3, 4, 6, 8, 11, 12, 14 } },
+    };
+    static const std::vector<std::vector<int>> trip[3] {
+        { { 0, 4, 6 }, { 0, 3, 8 }, { 0, 5, 6 } },
+        { { 0, 2, 3, 6, 9 }, { 0, 1, 2, 6, 8 }, { 0, 3, 5, 6, 9 }, { 0, 2, 4, 6, 8 } },
+        { { 0, 1, 2, 3, 5, 6, 8, 9, 11 }, { 0, 2, 3, 4, 6, 8, 9, 10 }, { 0, 1, 2, 4, 6, 7, 8, 10 } },
+    };
+    return triplet ? trip[std::clamp (tier, 0, 2)] : straight[std::clamp (tier, 0, 2)];
 }
 
+/** A motif contour in pool steps: mostly steps, the odd small leap, never wandering far. */
 std::vector<int> pickContour (util::Random& rng, size_t count)
 {
     std::vector<int> moves { 0 };
-    const double w[] = { 0.8, 3.0, 3.0, 2.0, 2.0, 0.8, 0.8, 0.35, 0.35 };
-    const int deltas[] = { 0, 1, -1, 2, -2, 3, -3, 4, -4 };
+    const double w[] = { 1.2, 3.0, 3.0, 1.4, 1.4 };
+    const int deltas[] = { 0, 1, -1, 2, -2 };
+    int pos = 0;
     while (moves.size() < count)
-        moves.push_back (deltas[rng.weightedIndex (w)]);
+    {
+        int d = deltas[rng.weightedIndex (w)];
+        if (std::abs (pos + d) > 3)
+            d = -d; // stay within a few notes of where the motif started
+        pos += d;
+        moves.push_back (d);
+    }
     return moves;
 }
 } // namespace
@@ -125,22 +125,44 @@ midi::MidiClip generateMelody (const Progression& prog, const MelodyParams& p)
         return clip;
 
     const int lo = std::min (p.rangeLow, p.rangeHigh - 7), hi = std::max (p.rangeHigh, p.rangeLow + 7);
-    const auto pool = scalePool (prog.key, lo, hi);
-    if (pool.empty())
+    const auto scale = scalePool (prog.key, lo, hi);
+    if (scale.empty())
         return clip;
+
+    // The line moves through the pentatonic scale (the backbone of this sound) unless the
+    // pentatonic knob is turned down; chord tones are always available on top.
+    const double pent = std::clamp (p.pentatonic, 0.0, 1.0);
+    std::vector<int> pool;
+    for (int n : scale)
+        if (pent < 0.5 || isPentatonic (prog.key, n))
+            pool.push_back (n);
+    if (pool.size() < 4)
+        pool = scale;
 
     const bool triplet = p.feel == MelodyFeel::Triplet;
     const int grid = triplet ? 12 : 16;
     const double stepBeats = 4.0 / grid;
     const double density = std::clamp (p.density, 0.0, 1.0);
-    const double pent = std::clamp (p.pentatonic, 0.0, 1.0);
+    const int tier = density < 0.34 ? 0 : density < 0.72 ? 1 : 2;
 
     util::Random motifRng (util::deriveSeed (p.seed, 500));
-    const auto motifRhythm = pickRhythm (motifRng, grid, density, triplet);
-    const auto motifContour = pickContour (motifRng, 12);
+    const auto& cells = rhythmCells (triplet, tier);
+    const auto rhythmA = cells[static_cast<size_t> (motifRng.nextInt (static_cast<int> (cells.size())))];
+    const auto rhythmB = cells[static_cast<size_t> (motifRng.nextInt (static_cast<int> (cells.size())))];
+    const auto contourA = pickContour (motifRng, 12);
+    auto contourB = contourA; // the answer mirrors the call
+    for (size_t i = 1; i < contourB.size(); ++i)
+        contourB[i] = -contourB[i];
 
-    int prevPitch = pool[pool.size() / 2];
+    // A narrow home register: the motif is re-anchored here every bar, so the phrase follows
+    // the chords (a sequence) without drifting up or down the keyboard.
+    const int home = (lo + hi) / 2 - 2;
+
+    // The note the whole loop resolves to: the tonic, else the nearest tone of the last chord.
+    const auto& lastChord = prog.slots.back().chord;
+
     std::vector<midi::Note> notes;
+    const int phraseBars = prog.bars >= 4 ? 4 : prog.bars;
 
     for (int bar = 0; bar < prog.bars; ++bar)
     {
@@ -150,26 +172,29 @@ midi::MidiClip generateMelody (const Progression& prog, const MelodyParams& p)
         {
             for (const auto& n : p.lockedNotes)
                 if (n.start >= barStart - 1e-9 && n.start < barStart + 4.0 - 1e-9)
-                {
                     notes.push_back (n);
-                    prevPitch = n.pitch;
-                }
             continue;
         }
 
         util::Random rng (util::deriveSeed (p.seed, static_cast<uint64_t> (600 + bar)));
-        const bool response = p.callResponse && bar % 2 == 1;
+        const int inPhrase = bar % std::max (1, phraseBars);
+        const bool phraseEnd = inPhrase == phraseBars - 1;
+        const bool loopEnd = bar == prog.bars - 1;
+        const bool response = p.callResponse && inPhrase % 2 == 1;
 
-        auto rhythm = (response || rng.chance (p.repetition)) ? motifRhythm : pickRhythm (rng, grid, density, triplet);
-        if (response && rhythm.size() > 2 && rng.chance (0.5))
-            rhythm.pop_back(); // answer with one note less and let the last one ring
+        // Call & response: A B A B'. Otherwise A A A A', with repetition deciding how often a
+        // bar keeps the motif's rhythm and catchiness how often it keeps its shape.
+        auto rhythm = response ? rhythmB : rhythmA;
+        if (! response && ! rng.chance (std::max (p.repetition, 0.0)))
+            rhythm = rhythmB;
+        if ((response || phraseEnd) && rhythm.size() > 3 && rhythm.back() >= grid - 4)
+            rhythm.pop_back(); // leave room at the end of the phrase so the last note rings
 
-        const bool reuseContour = rng.chance (p.catchiness);
-        auto contour = reuseContour ? motifContour : pickContour (rng, 12);
-        if (reuseContour && rng.chance (0.35))
-            contour[static_cast<size_t> (1 + rng.nextInt (static_cast<int> (contour.size()) - 1))] *= -1; // variation
+        auto contour = response ? contourB : contourA;
+        if (! rng.chance (std::max (p.catchiness, 0.0)) && contour.size() > 2)
+            contour[static_cast<size_t> (1 + rng.nextInt (static_cast<int> (contour.size()) - 1))] *= -1;
 
-        int idx = nearestIndex (pool, prevPitch);
+        int idx = 0;
         for (size_t k = 0; k < rhythm.size(); ++k)
         {
             const double t = barStart + rhythm[k] * stepBeats;
@@ -179,46 +204,51 @@ midi::MidiClip generateMelody (const Progression& prog, const MelodyParams& p)
 
             int pitch;
             if (k == 0)
-                pitch = nearestChordTone (pool, chord, prevPitch);
-            else if (reuseContour)
+            {
+                // Start each bar on a chord tone near home.
+                pitch = nearestChordTone (scale, chord, home);
+                idx = nearestIndex (pool, pitch);
+            }
+            else
             {
                 idx = std::clamp (idx + contour[k % contour.size()], 0, static_cast<int> (pool.size()) - 1);
                 pitch = pool[static_cast<size_t> (idx)];
             }
-            else
-            {
-                std::vector<double> w (pool.size());
-                for (size_t c = 0; c < pool.size(); ++c)
-                {
-                    double wt = stepWeight (static_cast<int> (c) - idx);
-                    wt *= isPentatonic (prog.key, pool[c]) ? 1.0 + 2.0 * pent : 1.0 - 0.7 * pent;
-                    if (strong && isChordTone (chord, pool[c]))
-                        wt *= 4.0;
-                    w[c] = wt;
-                }
-                pitch = pool[static_cast<size_t> (std::max (0, rng.weightedIndex (w)))];
-            }
 
             if (strong && ! isChordTone (chord, pitch))
-                pitch = nearestChordTone (pool, chord, pitch);
-            if (response && last)
-                pitch = nearestChordTone (pool, chord, pitch, true); // resolve downwards
+                pitch = nearestChordTone (scale, chord, pitch);
 
+            if (last && (phraseEnd || response))
+            {
+                // Cadence: the end of a phrase lands on the chord's root (the tonic at the very end
+                // of the loop when it fits), approached from above like a sung answer.
+                const auto& target = loopEnd ? lastChord : chord;
+                int rootPc = target.root;
+                if (loopEnd && isChordTone (target, prog.key.tonic))
+                    rootPc = prog.key.tonic;
+                int best = -1;
+                for (int n : scale)
+                    if (theory::wrapPc (n) == rootPc && (best < 0 || std::abs (n - pitch) < std::abs (best - pitch)))
+                        best = n;
+                if (best >= 0)
+                    pitch = best;
+                else
+                    pitch = nearestChordTone (scale, chord, pitch, true);
+            }
             idx = nearestIndex (pool, pitch);
 
             const double next = last ? barStart + 4.0 : barStart + rhythm[k + 1] * stepBeats;
-            double length = (next - t) * (0.82 + 0.1 * density);
+            double length = (next - t) * (0.8 + 0.12 * density);
             if (last)
-                length = std::min (next - t, response ? 2.0 : 1.0 + (1.0 - density));
+                length = std::min (next - t, (phraseEnd || response) ? 2.0 : 1.0 + (1.0 - density));
 
             midi::Note n;
             n.pitch = pitch;
             n.start = p.feel == MelodyFeel::Swung ? swingTime (t, p.swing) : t;
             n.length = std::max (stepBeats * 0.5, std::min (length, prog.lengthBeats() - n.start));
-            n.velocity = std::clamp ((strong ? 100 : 86) - (response ? 4 : 0) + rng.nextIntInclusive (-5, 5), 1, 127);
+            n.velocity = std::clamp ((strong ? 100 : 88) - (response ? 4 : 0) + rng.nextIntInclusive (-4, 4), 1, 127);
             n.channel = p.channel;
             notes.push_back (n);
-            prevPitch = pitch;
         }
     }
 

@@ -70,7 +70,7 @@ public:
 
 private:
     BounceProcessor& processor;
-    PillToggle internalSound, midiOut, preview;
+    PillToggle internalSound, midiOut, syncHost;
     std::vector<std::unique_ptr<juce::Component>> strips;
     DragMidiButton dragAll;
     juce::TextButton exportButton { "Export..." };

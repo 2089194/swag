@@ -19,7 +19,7 @@
       "bVI":  { "bVII": 2.5, "bIII": 2.0, "iv": 2.0, "i": 1.5, "v": 1.2 },
       "iv":   { "i": 2.0, "bVII": 2.0, "v": 1.8, "bVI": 1.2 }
     },
-    "colours": { "maj7": 1.8, "min9": 1.8, "min7": 1.4, "add9": 1.2, "dom7": 0.2 }
+    "colours": { "maj7": 2.0, "min9": 1.8, "min7": 1.8, "add9": 1.0, "dom7": 0.3, "6_9": 0.05, "dom7sus4": 0.0, "maj7s11": 0.0, "sus2": 0.1 }
   },
   "voicing": { "style": "spread", "low": 55, "high": 82 },
   "performance": {

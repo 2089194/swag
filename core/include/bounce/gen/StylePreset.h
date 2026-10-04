@@ -15,6 +15,15 @@
 namespace bounce::gen
 {
 
+/** A loop shape the chord generator builds from, e.g. { "i", "bVI", "bIII", "bVII" }. */
+struct ProgressionTemplate
+{
+    std::vector<std::string> chords; // canonical harmony tokens
+    double weight = 1.0;
+
+    bool operator== (const ProgressionTemplate&) const = default;
+};
+
 /** Musical style definition loaded from JSON. Every field has a sensible default so a preset
     only needs to override what makes it distinctive. See presets/styles/README.md. */
 struct StylePreset
@@ -43,6 +52,11 @@ struct StylePreset
     /** Weight of each function as the first chord of the loop. */
     std::map<std::string, double> majorStartWeights;
     std::map<std::string, double> minorStartWeights;
+
+    /** Loop shapes, the backbone of generation. A preset's list replaces the built-in one.
+        The Markov tables are still used to reharmonise single chords and to fill around locks. */
+    std::vector<ProgressionTemplate> majorProgressions;
+    std::vector<ProgressionTemplate> minorProgressions;
 
     /** Relative preference for colour qualities, by quality id ("maj7", "min9", "add9", "6_9", ...).
         Applied on top of complexity: a weight of 0 disables that colour. */

@@ -19,7 +19,8 @@
       "ii": { "V": 3.0, "I": 1.0, "bVII": 0.8 },
       "V":  { "I": 2.5, "iii": 1.0, "vi": 1.5 }
     },
-    "colours": { "maj9": 2.2, "min11": 1.6, "min9": 1.8, "6_9": 1.4, "dom9": 0.9, "maj7s11": 0.8, "dom7sus4": 0.6 }
+    "colours": { "maj9": 2.0, "min9": 1.8, "maj7": 1.6, "min7": 1.6, "6_9": 0.3, "min11": 0.3, "dom9": 0.4, "maj7s11": 0.1, "dom7sus4": 0.1 },
+    "majorProgressions": [ { "chords": ["ii", "V", "I", "vi"], "weight": 2.5 }, { "chords": ["IV", "iii", "ii", "I"], "weight": 2 }, { "chords": ["IV", "V", "iii", "vi"], "weight": 2.5 }, { "chords": ["vi", "ii", "V", "I"], "weight": 1.5 }, { "chords": ["IV", "iv", "I", "vi"], "weight": 1 }, { "chords": ["I", "iii", "IV", "iv"], "weight": 1 } ]
   },
   "voicing": { "style": "spread", "low": 55, "high": 84 },
   "performance": {

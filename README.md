@@ -28,13 +28,13 @@ static runtime, so no Visual C++ redistributable is needed.
 
 | Module | Highlights |
 |---|---|
-| **Chords** | Weighted-Markov harmony from JSON style presets. Controls: key, mode, 2/4/8 bars, 1–8 chords, complexity (triads → 11ths), mood, borrowed chords. Per chord: lock, reharmonise, invert, octave, voicing, **length**. Rhythms: sustain, half, syncopated stabs, 8th pulse, with strum, swing and humanise. Chord names and roman numerals everywhere. |
-| **808** | Root Follow, Syncopated Bounce, Octave Jumper, Glide Heavy and Sustain modes. Density, glide, octave range, note length, register, and **lock to kick**. Glides are written as overlapping notes plus CC65/CC5 portamento, so FL's 808s slide too. |
-| **Melody** | A motif with repetition, a catchiness control, call & response, and straight/swung/triplet feel. A pentatonic control sets how much the line favours pentatonic notes. Strong beats land on chord tones. **Per-bar lock**, plus an optional **counter-melody** that fills gaps in contrary motion and avoids clashes. |
+| **Chords** | Loops built from each style's progression shapes (e.g. i–bVI–bIII–bVII, IV–V–iii–vi), coloured with the chord types the style favours and voiced without clusters. A weighted Markov chain fills around locked chords and drives reharmonise. Controls: key, mode, 2/4/8 bars, 1–8 chords, complexity (triads → 11ths), mood, borrowed chords. Per chord: lock, reharmonise, invert, octave, voicing, **length**. Rhythms: sustain, half, syncopated stabs, 8th pulse, with strum, swing and humanise. Chord names and roman numerals everywhere. |
+| **808** | Plays the chord roots in whichever octave keeps the line smooth, repeating one programmed bar so it grooves instead of wandering. Root Follow, Syncopated Bounce, Octave Jumper, Glide Heavy and Sustain modes. Density, glide, octave range, note length, register, and **lock to kick**. Glides are written as overlapping notes plus CC65/CC5 portamento, so FL's 808s slide too. |
+| **Melody** | Built from a one-bar rhythm cell and a pentatonic motif that follows the chords, in call/answer phrases that resolve to the chord root (the tonic at the loop end). Repetition, a catchiness control, call & response, and straight/swung/triplet feel. A pentatonic control sets how much the line favours pentatonic notes. Strong beats land on chord tones. **Per-bar lock**, plus an optional **counter-melody** that fills gaps in contrary motion and avoids clashes. |
 | **Drums** | Kick, clap, hats, open hat, perc, rim and FX lanes with a half-time backbone. Hat rolls in 1/16, 1/16T, 1/32 and 1/32T, with velocity curves and pitch ramps. Stutters, swing, humanise and a **bounce** control that pushes hits off-grid. Output uses the GM/FPC note map or your own. |
 | **Key & BPM Lab** | Load WAV/MP3/FLAC/OGG/AIFF, or capture the plugin input, and analysis runs on a background thread. You get BPM (with ½× and 2× options), the top 3 keys with confidence plus the relative key, and an editable chord lane. **Send to Chord Generator** turns the chords into locked slots with their real lengths, and a speed/pitch flip helper is included. |
 | **Arrange** | Intro/Hook/Verse/Bridge/Outro sections with per-part mutes, a drop in the last bar, CC74 filter sweeps and marker names, exported as one multi-track MIDI file. |
-| **Sound** | Keys/pad with tape wobble, a mono 808 with punch and glide, a bell/pluck/flute lead, and a drum sampler. The bundled kit is **synthesised by the plugin itself**, and you can load your own samples per lane. Each part has level, mute/solo, drive, low-pass, delay and reverb. |
+| **Sound** | FM electric-piano keys with tape wobble, a mono 808 with punch and glide, a bell/pluck/flute lead, and a drum sampler. The bundled kit is **synthesised by the plugin itself**, and you can load your own samples per lane. Each part has level, mute/solo, drive, low-pass, delay and reverb. |
 
 Everything is generated from **seeds**. The same seed and settings give the same idea on every
 OS. Generate re-rolls everything, the dice on each part re-rolls only that part, and turning a
@@ -76,8 +76,13 @@ and supported.)
 
 ## Using it
 
-- **Window.** It opens at the largest size that fits your screen (up to 100%). Drag the corner
-  to resize between 75% and 200%; the size is remembered per project.
+- **Listening.** Bounce does **not** play along with FL by default, so the notes you drag into
+  FL's Piano Roll aren't doubled. Press **▶** in the top bar to loop the whole idea inside
+  Bounce, or the **▶ on a part's lane** to hear just that part (press again to stop). Turn on
+  **Sync FL** (Mix & Output) to make Bounce follow FL's transport instead.
+- **Window.** It opens at a moderate size (about 60% of the screen height), leaving room for FL.
+  Drag the corner to resize between 60% and 200%. The last size you used is remembered for new
+  instances, and each project keeps its own.
 - **Keyboard.** `G` generate · `L` lock · `R` reharmonise · `1–8` select chord · `←/→` previous/next ·
   `↑/↓` invert · `Ctrl/Cmd+Z` undo · `Ctrl/Cmd+Shift+Z` / `Ctrl+Y` redo.
 - **Mini piano rolls.** Click a note to delete it and double-click to add one. The lock icons on

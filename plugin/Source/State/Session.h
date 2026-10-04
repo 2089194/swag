@@ -88,6 +88,18 @@ public:
     //== History ==================================================================
     bool canUndo() const { return history.canUndo(); }
     bool canRedo() const { return history.canRedo(); }
+    //== Listening inside Bounce ===================================================
+    /** Play / stop Bounce's own loop (independent of FL's transport unless Sync is on). */
+    bool isPlaying() const;
+    void setPlaying (bool shouldPlay);
+
+    /** Listen to one part on its own: solos it and starts playing. Calling it again for the
+        part already being listened to stops playback and clears the solo. */
+    void toggleListen (gen::Part part);
+
+    /** True while `part` is soloed on its own and playing. */
+    bool isListeningTo (gen::Part part) const;
+
     void undo();
     void redo();
     const std::deque<gen::IdeaHistory::Entry>& ideas() const { return history.ideas(); }

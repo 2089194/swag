@@ -140,15 +140,31 @@ void BounceEditor::Content::resized()
 //==============================================================================
 int BounceEditor::defaultWidthForScreen()
 {
-    // Biggest size up to 100% that fits ~92% of the main screen, never below 75%.
+    // A comfortable window that leaves FL's Playlist and Piano Roll visible: about 60% of the
+    // screen height, never more than 80% of the design size, never below the 60% minimum.
     if (const auto* display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay())
     {
         const auto area = display->userArea;
-        const double fit = juce::jmin (1.0, area.getWidth() * 0.92 / designWidth, area.getHeight() * 0.88 / designHeight);
-        return juce::roundToInt (designWidth * juce::jmax (0.75, fit));
+        const double fit = juce::jmin (0.8, area.getWidth() * 0.6 / designWidth, area.getHeight() * 0.62 / designHeight);
+        return juce::roundToInt (designWidth * juce::jmax (0.6, fit));
     }
-    return designWidth;
+    return designWidth * 7 / 10;
 }
+
+namespace
+{
+/** Remembers the last window width across every Bounce instance and project
+    (%APPDATA%\Bounce\Bounce.settings), so a new instance opens at the size you last chose. */
+std::unique_ptr<juce::PropertiesFile> openGlobalSettings()
+{
+    juce::PropertiesFile::Options o;
+    o.applicationName = "Bounce";
+    o.filenameSuffix = ".settings";
+    o.folderName = "Bounce";
+    o.osxLibrarySubFolder = "Application Support";
+    return std::make_unique<juce::PropertiesFile> (o);
+}
+} // namespace
 
 BounceEditor::BounceEditor (BounceProcessor& p)
     : AudioProcessorEditor (p),
@@ -162,14 +178,17 @@ BounceEditor::BounceEditor (BounceProcessor& p)
     content.setSize (designWidth, designHeight);
 
     // Read the saved size first: setting the resize limits triggers a resize of its own.
-    // (Sizes saved by milestone 1, whose design width was 1120, are rescaled.)
-    int saved = static_cast<int> (p.getState().state.getProperty (kUiWidth, 0));
-    if (saved > 0 && ! p.getState().state.hasProperty ("uiDesign2"))
-        saved = juce::roundToInt (saved * static_cast<double> (designWidth) / 1120.0);
-    const int w = juce::jlimit (designWidth * 3 / 4, designWidth * 2, saved > 0 ? saved : defaultWidthForScreen());
+    // A size saved in this project wins, then the last size used anywhere, then a default
+    // that fits beside FL's windows. (Sizes saved before "uiDesign3" came from the old
+    // fill-the-screen default, so they're ignored.)
+    int saved = p.getState().state.hasProperty ("uiDesign3") ? static_cast<int> (p.getState().state.getProperty (kUiWidth, 0)) : 0;
+    if (saved <= 0)
+        if (auto settings = openGlobalSettings())
+            saved = settings->getIntValue (kUiWidth.toString(), 0);
+    const int w = juce::jlimit (designWidth * 6 / 10, designWidth * 2, saved > 0 ? saved : defaultWidthForScreen());
 
     setResizable (true, true);
-    setResizeLimits (designWidth * 3 / 4, designHeight * 3 / 4, designWidth * 2, designHeight * 2);
+    setResizeLimits (designWidth * 6 / 10, designHeight * 6 / 10, designWidth * 2, designHeight * 2);
     getConstrainer()->setFixedAspectRatio (static_cast<double> (designWidth) / designHeight);
     setSize (w, juce::roundToInt (w * static_cast<double> (designHeight) / designWidth));
     sizeRestored = true;
@@ -178,6 +197,8 @@ BounceEditor::BounceEditor (BounceProcessor& p)
 
 BounceEditor::~BounceEditor()
 {
+    if (auto settings = openGlobalSettings())
+        settings->setValue (kUiWidth.toString(), getWidth()); // written when `settings` closes
     juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
     setLookAndFeel (nullptr);
 }
@@ -194,7 +215,7 @@ void BounceEditor::resized()
     if (sizeRestored)
     {
         processor.getState().state.setProperty (kUiWidth, getWidth(), nullptr);
-        processor.getState().state.setProperty ("uiDesign2", true, nullptr);
+        processor.getState().state.setProperty ("uiDesign3", true, nullptr);
     }
 }
 

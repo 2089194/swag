@@ -46,6 +46,34 @@ void removeFirst (std::vector<int>& v, int value)
 }
 } // namespace
 
+int voicingClashPenalty (const std::vector<int>& notes, int belowNote)
+{
+    // Minor 2nds between neighbouring voices (a 9th tucked under the 3rd, a maj7 under the root)
+    // read as a cluster rather than a chord; seconds and thirds low down turn into mud.
+    int penalty = 0;
+    int prev = belowNote;
+    for (int n : notes)
+    {
+        if (prev > -1000)
+        {
+            const int d = n - prev;
+            if (d == 1)
+                penalty += 60;
+            else if (d == 2 && prev < 60)
+                penalty += 18;
+            else if (d <= 4 && prev < 50)
+                penalty += 10;
+        }
+        prev = n;
+    }
+    // A minor 9th between any two upper voices is just as harsh as a minor 2nd.
+    for (size_t i = 0; i < notes.size(); ++i)
+        for (size_t j = i + 1; j < notes.size(); ++j)
+            if (notes[j] - notes[i] == 13)
+                penalty += 40;
+    return penalty;
+}
+
 std::string_view voicingStyleName (VoicingStyle s) { return styleTable[static_cast<size_t> (s)].name; }
 std::string_view voicingStyleId (VoicingStyle s)   { return styleTable[static_cast<size_t> (s)].id; }
 
@@ -158,68 +186,95 @@ Voicing voiceChord (const Chord& chord, const VoicingParams& p, const Voicing* p
     int bestRotation = 0;
     long bestScore = LONG_MAX;
 
-    for (int rot = 0; rot < k; ++rot)
+    // Every tone may sit in any octave of the register (not just packed close stacks), so the
+    // search can open a cluster up the way a player would: A C# G# B rather than G# A B C#.
+    const int maxSpan = [&]
     {
+        switch (p.style)
+        {
+            case VoicingStyle::Close:      return 16;
+            case VoicingStyle::FlipStab:   return 14;
+            case VoicingStyle::Spread:     return 19;
+            case VoicingStyle::ThirdOnTop: return 19;
+            case VoicingStyle::Open:       return 24;
+            case VoicingStyle::NumStyles:  break;
+        }
+        return 19;
+    }();
+
+    std::vector<int> prevUpper;
+    if (previous && ! previous->notes.empty())
+    {
+        for (int n : previous->notes)
+            if (n > lhTop)
+                prevUpper.push_back (n);
+        if (prevUpper.empty())
+            prevUpper = previous->notes;
+    }
+
+    std::vector<std::vector<int>> choices (static_cast<size_t> (k));
+    for (int i = 0; i < k; ++i)
+        for (int n = noteAtOrAbove (upper[static_cast<size_t> (i)], p.rhLow); n <= p.rhHigh; n += 12)
+            choices[static_cast<size_t> (i)].push_back (n);
+
+    std::vector<int> pick (static_cast<size_t> (k), 0);
+    std::vector<int> cand (static_cast<size_t> (k));
+    bool more = std::all_of (choices.begin(), choices.end(), [] (const auto& c) { return ! c.empty(); });
+    while (more)
+    {
+        for (int i = 0; i < k; ++i)
+            cand[static_cast<size_t> (i)] = choices[static_cast<size_t> (i)][static_cast<size_t> (pick[static_cast<size_t> (i)])];
+
+        // Odometer step to the next octave assignment.
+        more = false;
+        for (int i = 0; i < k; ++i)
+        {
+            if (++pick[static_cast<size_t> (i)] < static_cast<int> (choices[static_cast<size_t> (i)].size()))
+            {
+                more = true;
+                break;
+            }
+            pick[static_cast<size_t> (i)] = 0;
+        }
+
+        auto sorted = cand;
+        std::sort (sorted.begin(), sorted.end());
+        if (std::adjacent_find (sorted.begin(), sorted.end()) != sorted.end())
+            continue;
+        if (sorted.back() - sorted.front() > maxSpan)
+            continue;
+        if (sorted.front() <= lhTop + 2)
+            continue;
+
+        const int lowestPc = wrapPc (sorted.front());
+        const int rot = static_cast<int> (std::find (upper.begin(), upper.end(), lowestPc) - upper.begin());
         if (p.inversion && ((*p.inversion % k) + k) % k != rot)
             continue;
 
-        for (int start = p.rhLow; start < p.rhLow + 12; ++start)
+        if (p.style == VoicingStyle::ThirdOnTop && hasThird
+            && wrapPc (sorted.back() - chord.root) != thirdIv)
+            continue;
+
+        long score = 0;
+        if (! prevUpper.empty())
+            score = 4L * voiceLeadingDistance (Voicing { sorted, rot }, Voicing { prevUpper, 0 })
+                  + 2L * std::abs (sorted.back() - prevUpper.back());
+
+        int sum = 0;
+        for (int n : sorted)
+            sum += n;
+        score += std::abs (sum / k - rhCentre);
+        score += voicingClashPenalty (sorted, lhTop);
+        if (p.style == VoicingStyle::Close || p.style == VoicingStyle::FlipStab)
+            score += (sorted.back() - sorted.front()) / 2; // keep them compact
+        if (p.style == VoicingStyle::Open && sorted.back() - sorted.front() < 12)
+            score += 20; // open means open
+
+        if (score < bestScore)
         {
-            if (wrapPc (start) != upper[static_cast<size_t> (rot)])
-                continue;
-
-            for (int octave = 0; octave < 4; ++octave)
-            {
-                std::vector<int> cand;
-                int prev = start + octave * 12;
-                cand.push_back (prev);
-                for (int i = 1; i < k; ++i)
-                {
-                    prev = noteAtOrAbove (upper[static_cast<size_t> ((rot + i) % k)], prev + 1);
-                    cand.push_back (prev);
-                }
-
-                if (p.style == VoicingStyle::Open && cand.size() >= 3)
-                {
-                    cand[cand.size() - 2] -= 12;
-                    std::sort (cand.begin(), cand.end());
-                }
-
-                if (cand.front() < p.rhLow || cand.back() > p.rhHigh)
-                    continue;
-                if (cand.front() <= lhTop + 2)
-                    continue;
-
-                if (p.style == VoicingStyle::ThirdOnTop && hasThird
-                    && wrapPc (cand.back() - chord.root) != thirdIv)
-                    continue;
-
-                long score = 0;
-                if (previous && ! previous->notes.empty())
-                {
-                    Voicing c { cand, rot };
-                    std::vector<int> prevUpper;
-                    for (int n : previous->notes)
-                        if (n > lhTop)
-                            prevUpper.push_back (n);
-                    if (prevUpper.empty())
-                        prevUpper = previous->notes;
-                    score = 4L * voiceLeadingDistance (c, Voicing { prevUpper, 0 })
-                          + 2L * std::abs (cand.back() - prevUpper.back());
-                }
-
-                int sum = 0;
-                for (int n : cand)
-                    sum += n;
-                score += std::abs (sum / k - rhCentre);
-
-                if (score < bestScore)
-                {
-                    bestScore = score;
-                    best = cand;
-                    bestRotation = rot;
-                }
-            }
+            bestScore = score;
+            best = sorted;
+            bestRotation = rot;
         }
     }
 

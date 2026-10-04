@@ -9,9 +9,9 @@
 namespace bounce
 {
 
-/** Milestone-1 audition voice: a soft polyphonic keys/pad (detuned PolyBLEP saws + sine through
-    a gentle 12 dB low-pass, ADSR), followed by chorus and reverb. Just enough to hear ideas
-    without routing; the full engine (808, lead, drum sampler, per-part FX) is milestone 2.
+/** Polyphonic electric piano for the chords: 2-operator FM (a ratio-1 body whose brightness
+    decays after the attack, plus a fast-decaying ratio-14 "tine"), a gentle low-pass, ADSR and
+    chorus. Every chord tone stays distinct, so voicings read as chords rather than a wash.
 
     Real-time safe: everything is allocated in prepare(); render() never allocates or locks
     (deliberately not juce::Synthesiser, whose render path takes a lock). */
@@ -40,6 +40,7 @@ private:
         double phase[3] {};
         double inc[3] {};
         float lp1 = 0.0f, lp2 = 0.0f, cutoffCoeff = 0.2f;
+        float index = 0.0f, tine = 0.0f, indexDecay = 1.0f, tineDecay = 1.0f;
         float pan = 0.5f;
         juce::ADSR env;
 

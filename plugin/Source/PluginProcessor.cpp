@@ -36,6 +36,7 @@ BounceProcessor::BounceProcessor()
     formats.registerBasicFormats();
 
     pp.preview = apvts.getRawParameterValue (params::preview);
+    pp.syncHost = apvts.getRawParameterValue (params::syncHost);
     pp.internalSound = apvts.getRawParameterValue (params::internalSound);
     pp.midiOut = apvts.getRawParameterValue (params::midiOut);
     pp.keysWobble = apvts.getRawParameterValue (params::keysWobble);
@@ -144,7 +145,9 @@ void BounceProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             if (const auto ppq = pos->getPpqPosition())
             {
                 transport.hostPpq = *ppq;
-                transport.hostPlaying = pos->getIsPlaying();
+                // Bounce only follows FL's play button when Sync is on. Otherwise it stays silent
+                // while you play the notes you dragged into FL, and sounds only when you press Play.
+                transport.hostPlaying = pos->getIsPlaying() && pp.syncHost->load() > 0.5f;
             }
         }
     }
@@ -319,6 +322,9 @@ void BounceProcessor::setStateInformation (const void* data, int sizeInBytes)
     {
         if (paramsTree.isValid())
             apvts.replaceState (paramsTree);
+        // A reopened project never starts playing by itself.
+        if (auto* play = apvts.getParameter (params::preview))
+            play->setValueNotifyingHost (0.0f);
         session->fromValueTree (sessionTree);
         for (int l = 0; l < gen::numDrumLanes; ++l)
         {

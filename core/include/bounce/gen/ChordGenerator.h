@@ -18,6 +18,8 @@ struct ChordGeneratorParams
     double mood = 0.0;       // -1 dark .. +1 bright
     double borrowed = 0.35;  // 0 = strictly diatonic .. 1 = lots of modal mixture
     uint64_t seed = 1;
+    /** Build from the style's loop shapes (true) or wander with the Markov chain (false). */
+    bool useTemplates = true;
 };
 
 /** Weighted-Markov chord loop generator driven by a StylePreset.
@@ -61,6 +63,9 @@ private:
 
     theory::Chord chooseChord (const HarmonyFunction& fn, const ChordGeneratorParams& params,
                                uint64_t streamSeed, const theory::Chord* avoid) const;
+
+    /** Fills the unknown slots from a loop shape. Returns false if no shape fits the locks. */
+    bool fillFromTemplate (Progression& prog, std::vector<bool>& known, const ChordGeneratorParams& params) const;
 
     std::vector<Candidate> candidatesFor (const Progression& prog, int index,
                                           const ChordGeneratorParams& params,

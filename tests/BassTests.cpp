@@ -50,11 +50,10 @@ TEST_CASE ("808 follows chord roots and stays in register")
                 CHECK (n.pitch < p.lowNote + 12 * p.octaveRange + 12);
                 CHECK (n.start + n.length <= clip.lengthBeats + 1e-9);
 
-                // Root, 5th or octave of the chord sounding at that point.
+                // Always the bass note of the chord sounding at that point (or its octave):
+                // no stray 5ths or passing notes muddying the low end.
                 const auto& chord = pr.slots[static_cast<size_t> (pr.slotAt (n.start + 1e-6))].chord;
-                const int rel = theory::wrapPc (n.pitch - chord.bass.value_or (chord.root));
-                const int fifth = theory::wrapPc (theory::qualityIntervals (chord.quality)[2]);
-                CHECK ((rel == 0 || rel == fifth));
+                CHECK (theory::wrapPc (n.pitch - chord.bass.value_or (chord.root)) == 0);
             }
 
             // Every chord change gets a new root on its downbeat.
@@ -123,4 +122,48 @@ TEST_CASE ("808 is deterministic")
     BassParams p;
     p.seed = 42;
     CHECK (generateBass (pr, kicks (1), p).notes == generateBass (pr, kicks (1), p).notes);
+}
+
+TEST_CASE ("808 roots move to the nearest octave between chords")
+{
+    for (uint64_t seed = 0; seed < 40; ++seed)
+    {
+        const auto pr = prog (seed);
+        BassParams p;
+        p.mode = BassMode::Sustain;
+        p.glide = 0.0;
+        const auto clip = generateBass (pr, {}, p);
+        REQUIRE (clip.notes.size() == pr.slots.size());
+        for (size_t i = 1; i < clip.notes.size(); ++i)
+            CHECK (std::abs (clip.notes[i].pitch - clip.notes[i - 1].pitch) <= 9); // a 6th at most, e.g. D2 down to F1
+    }
+}
+
+TEST_CASE ("808 repeats one bar rhythm across the loop")
+{
+    ChordGenerator gen (StylePreset::defaults());
+    ChordGeneratorParams cp;
+    cp.bars = 4;
+    cp.chordCount = 4; // one chord per bar
+    for (auto mode : { BassMode::RootFollow, BassMode::SyncopatedBounce, BassMode::OctaveJumper, BassMode::GlideHeavy })
+        for (uint64_t seed = 0; seed < 20; ++seed)
+        {
+            cp.seed = seed;
+            const auto pr = gen.generate (cp);
+            BassParams p;
+            p.mode = mode;
+            p.lockToKick = false;
+            p.seed = seed;
+            const auto clip = generateBass (pr, {}, p);
+
+            std::vector<std::vector<int>> bars (4); // 16th steps hit in each bar
+            for (const auto& n : clip.notes)
+            {
+                const int bar = static_cast<int> (n.start / 4.0);
+                bars[static_cast<size_t> (bar)].push_back (static_cast<int> (std::lround ((n.start - bar * 4.0) * 4.0)));
+            }
+            INFO (bassModeName (mode), " seed ", seed);
+            for (size_t b = 1; b < bars.size(); ++b)
+                CHECK (bars[b] == bars[0]);
+        }
 }

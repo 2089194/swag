@@ -11,6 +11,12 @@ Install
 Bounce.exe is a standalone version for trying ideas without a DAW
 (Options > Audio/MIDI settings to pick your sound card).
 
+Listening
+  - Bounce stays silent when FL plays (so dragged notes aren't doubled).
+  - Top-bar play button: loop the whole idea inside Bounce.
+  - Play button on a part's lane: hear only that part (click again to stop).
+  - "Sync FL" (Mix & Output panel): follow FL's transport instead.
+
 Getting the MIDI into FL Studio
   - Drag a part's tile (Chords / 808 / Melody / Drums, or Drag All) onto a channel's
     Piano Roll or onto the Playlist.

@@ -36,7 +36,14 @@ a preset only needs to state what makes it different.
     "mood": 0.0,                  // -1 dark ... +1 bright
     "borrowed": 0.35,             // 0 = strictly diatonic ... 1 = lots of modal mixture
 
-    // Markov transition weights, from-chord -> { to-chord: weight }.
+    // Loop shapes new progressions are built from (fitted cyclically to the chord count).
+    // A list here replaces the built-in shapes. Entries are a chord list or
+    // { "chords": [...], "weight": n }.
+    "minorProgressions": [ ["i", "bVI", "bIII", "bVII"], { "chords": ["bVI", "iv", "i", "v"], "weight": 2 } ],
+    "majorProgressions": [ ["IV", "V", "iii", "vi"], ["I", "V", "vi", "IV"] ],
+
+    // Markov transition weights, from-chord -> { to-chord: weight }. Used around locked chords,
+    // for reharmonising, and when no loop shape fits.
     // Merged into the built-in tables: set a weight to 0 to forbid a move.
     // Major-tonic modes use majorTransitions, minor-tonic modes use minorTransitions.
     "majorTransitions": { "I": { "vi": 3, "IV": 2.5 } },
